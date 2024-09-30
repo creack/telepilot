@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1
+
+# Latest as of 2024-09-30.
+ARG GO_VERSION="1.23.1-alpine@sha256:ac67716dd016429be8d4c2c53a248d7bcdf06d34127d3dc451bda6aa5a87bc06"
+
+FROM golang:${GO_VERSION}
+
+# Latest versions as of 2024-09-30.
+# TODO: Include and enforce checksums. Trusting Github, the protocolbuffers org maintainers and the Golang proxy for now.
+ARG PB_VERSION="28.2" \
+    GRPC_GO_VERSION="1.5.1" \
+    PROTOC_GO_VERSION="1.34.2"
+
+# Install
+# - protobuf
+# - protoc-gen-go
+# - protoc-gen-go-grpc
+RUN wget "https://github.com/protocolbuffers/protobuf/releases/download/v${PB_VERSION}/protoc-${PB_VERSION}-linux-x86_64.zip" && \
+    unzip protoc-${PB_VERSION}-linux-x86_64.zip -d /usr && \
+    rm protoc-${PB_VERSION}-linux-x86_64.zip && \
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@v${PROTOC_GO_VERSION} && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v${GRPC_GO_VERSION}
+
+ENTRYPOINT ["/usr/bin/protoc"]

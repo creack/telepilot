@@ -1,0 +1,45 @@
+---
+name: Lint
+
+'on':
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  golangci:
+    name: GolangCI-Lint
+    runs-on: ubuntu-latest
+    steps:
+      # NOTE: We trust Github.
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      # NOTE: We trust golangci org.
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.61.0
+          skip-cache: true
+
+  buf:
+    name: Protobuf Formatting Check
+    runs-on: ubuntu-latest
+    steps:
+      # NOTE: We trust GitHub.
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-action@d4b43256b3a511e94e6c0d38d478e1bd39f8690e  # v1.0.1. Latest as of 2024-10-03.
+        name: Run buf
+        with:
+          pr_comment: false
+
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+      # NOTE: We trust GitHub.
+      - uses: actions/checkout@v4
+      - uses: frenck/action-yamllint@34b4bbcaeabedcfefad6adea8c5bbc42af0e2d47  # v1.5.0. Latest as of 2024-09-30. yamllint 1.35.1
+        name: Run yamllint

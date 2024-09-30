@@ -102,7 +102,7 @@ service TelePilotService {
 ##### SSL Configuration
 
 The API server will be serve using TLS 1.3 (latest as of the time of the writing), allowing the recommded curves for key exchange:
-- X25519 
+- X25519
 - P521
 - P384
 - P256
@@ -113,7 +113,7 @@ and the recommended ciphersuites:
 
 Certificates are using the ECDSA signature algorithm.
 
-See https://www.iana.org/assignments/tls-parameters/tls-parameters.xml for more details. 
+See https://www.iana.org/assignments/tls-parameters/tls-parameters.xml for more details.
 
 ##### mTLS / User management
 
@@ -146,7 +146,7 @@ Client:
   - status: Get the current status and resource usage of a job.
   - logs: Stream logs for a running job. Gets all logs from the beginning and streams them until the process dies.
 
-The CLI defaults to the user 'alice' and looks for the certs in `./certs`. This can be changed with the `-user <name>` and `-certs <certs dir>` flags. For the sake of the exercise, we won't implement flags for each files and always expect the following: 
+The CLI defaults to the user 'alice' and looks for the certs in `./certs`. This can be changed with the `-user <name>` and `-certs <certs dir>` flags. For the sake of the exercise, we won't implement flags for each files and always expect the following:
   - `<certs dir>/ca.pem` server's CA
   - `<certs dir>/client-<name>.pem` client certificate
   - `<certs dir>/client-<name>-key.pem` client private key
@@ -262,6 +262,52 @@ The `depguard` linter in particular is used to enforce the depdencies contraints
 ### YAML
 
 `yamllint` is used to enforce YAML style. See [.yamllint](.yamllint) for details. This is used to validate the GitHub actions.
+
+## Project structure
+
+```
+├── .dockerignore                # Docker context settings.
+├── .editorconfig                # General editor configuration.
+├── .gitattributes               # Settings how to display files in diffs.
+├── .github                      # GitHub specifc files.
+│   └── workflows                # GitHub Actions files.
+│       └── lint.yaml            # Linter GitHub Action definitions.
+├── .gitignore                   # Git ignored file list.
+├── .golangci.yml                # Go linter config.
+├── .vscode                      # While I don't use VSCode myself, many do, this provides details about the workspace.
+│   └── extensions.json          # Recommended extensions for VSCode.
+├── .yamllint                    # yamllint config.
+├── DESIGN.md                    # This document.
+├── LICENSE                      # License details.
+├── Makefile                     # Main Makefile to interact with the project to build, run tests, generate certificates, etc.
+├── README.md                    # Main public facing docs. Currently empty but will get populated based on this document.
+├── api                          # gRPC API dir.
+│   └── v1                       # v1 API.
+│       ├── api.pb.go            # Protobuf API definition.
+│       ├── api.proto            # <generated> go protobuf file.
+│       └── api_grpc.pb.go       # <generated> go grpc protobuf file.
+├── cmd                          # Sources for the binaries.
+│   ├── telepilot                # Sources for the client binary.
+│   │   └── main.go              # Boilerplate client loading ssl certs, connecting to server and calling an empty method.
+│   └── telepilotd               # Sources for the server binary.
+│       └── main.go              # Boilerplate server loading ssl certs, serving the unimplemented API with middleware to handle authn later.
+├── go.mod                       # Go dependencies definition.
+├── go.sum                       # Go dependencies lock file.
+├── make                         # Makefile helpers dir.
+│   ├── Dockerfile.cfssl         # Dockerfile to build the cfssl tool used to generate and manage certs.
+│   ├── Dockerfile.protobuf      # Dockerfile to build the protoc compiler with the go grpc plugins.
+│   ├── cfssl.json               # Basic cfssl config file.
+│   ├── csr.json                 # Basic CSR config file for cfssl.
+│   ├── docker.mk                # Docker related targets to build dockerfiles.
+│   ├── go-lint.mk               # Golang linter targets.
+│   ├── mtls.mk                  # mTLS related targets.
+│   ├── protobuf-lint.mk         # Protobuf linter targets.
+│   └── protobuf.mk              # Protobuf compiler targets.
+└── pkg                          # Packages/libs sources.
+    └── jobmanager               # Main package providing the job management logic.
+        ├── job.go               # Job definition and logic. Nothing implemented yet.
+        └── jobmanager.go        # Job Management logic. Provides the main interface definition, but nothing is implemented yet.
+```
 
 ## Conclusion
 

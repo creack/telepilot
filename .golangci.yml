@@ -1,0 +1,47 @@
+---
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  # Enable all available linters.
+  enable-all: true
+  disable:
+    # Disable the deprecated ones.
+    - gomnd
+    - exportloopref
+    - execinquery
+    # Disable flaky ones, too many false positives.
+    - exhaustruct
+    - godox
+    - nlreturn
+    - tagalign
+    - varnamelen
+    - wsl
+
+linters-settings:
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(go.creack.net/telepilot)
+  tagliatelle:
+    case:
+      rules:
+        json: snake
+  depguard:
+    rules:
+      main:
+        allow:
+          - $gostd
+          # GRPC
+          - google.golang.org/grpc
+          - google.golang.org/grpc/credentials
+          - google.golang.org/grpc/peer
+          # Utils.
+          - github.com/google/uuid
+
+issues:
+  exclude-files:
+    # Protobuf generated.
+    - "api/v1/*.go"

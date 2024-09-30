@@ -1,0 +1,5 @@
+Dockerfile.* linguist-language=dockerfile
+**/*/vendor/**/* linguist-generated=true
+**/*/vendor linguist-generated=true
+api/*.pb.* linguist-generated=true
+go.sum linguist-generated=true
