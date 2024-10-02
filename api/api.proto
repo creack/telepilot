@@ -4,13 +4,8 @@ package api;
 
 option go_package = "go.creack.net/telepilot/api";
 
-import "google/protobuf/timestamp.proto";
-
 // Service definition for the TelePilot API.
 service TelePilot {
-  // Create a new job (job is created but not started).
-  rpc CreateJob(CreateJobRequest) returns (CreateJobResponse);
-
   // Start a previously created job.
   rpc StartJob(StartJobRequest) returns (StartJobResponse);
 
@@ -24,32 +19,20 @@ service TelePilot {
   rpc StreamLogs(LogRequest) returns (stream LogEntry);
 }
 
-// Request to create a new job (without starting it).
-message CreateJobRequest {
-  string command       = 1;  // Command to run.
-  repeated string args = 2;  // Arguments for the command.
-  string cpu_limit     = 4;  // CPU limit in human-readable format (e.g., "0.5", "50%").
-  string memory_limit  = 5;  // Memory limit in human-readable format (e.g., "500MB", "1GB").
-  string io_limit      = 6;  // I/O limit in human-readable format (e.g., "10MB/s", optional).
-}
-
-// Response for creating a new job.
-message CreateJobResponse {
-  string job_id  = 1;  // Unique ID for the created job.
-  string message = 2;  // Success or failure message.
-}
-
-// Request to start a created job.
+// Request to create and start a job.
 message StartJobRequest {
-  string job_id = 1;  // Unique ID for the created job.
+  string command = 1;       // Command to run.
+  repeated string args = 2; // Arguments for the command.
 }
 
 // Response for starting a job.
-message StartJobResponse {}
+message StartJobResponse {
+  string job_id = 1; // Unique ID (UUID) for the new job.
+}
 
 // Request to stop a running job.
 message StopJobRequest {
-  string job_id = 1;  // ID of the job to stop.
+  string job_id = 1; // ID of the job to stop.
 }
 
 // Response for stopping a job.
@@ -57,39 +40,29 @@ message StopJobResponse {}
 
 // Request for the status of a job.
 message JobStatusRequest {
-  string job_id = 1;  // ID of the job to get status for.
+  string job_id = 1; // ID of the job to get status for.
 }
 
 // Response with the status of a job.
 message JobStatusResponse {
-  string job_id            = 1;  // ID of the job.
-  JobStatus status         = 2;  // Current status of the job.
-  optional int32 exit_code = 3;  // Exit code if the job is done.
+  JobStatus status = 1;         // Current status of the job.
+  optional int32 exit_code = 2; // Exit code if the job is done.
 }
 
 // Request to stream logs for a job.
 message LogRequest {
-  string job_id = 1;  // ID of the job to stream logs for.
+  string job_id = 1; // ID of the job to stream logs for.
 }
 
 // Log entry response when streaming logs.
 message LogEntry {
-  google.protobuf.Timestamp timestamp = 1;  // Timestamp of the log entry.
-  LogKind kind                        = 2;  // Whether the log is stdout or stderr.
-  bytes data                          = 3;  // Log message content.
-}
-
-// Enum to represent log kinds (stdout, stderr).
-enum LogKind {
-  LOG_KIND_UNSPECIFIED = 0;  // Default value, unspecified.
-  LOG_KIND_STDOUT      = 1;  // Log from stdout.
-  LOG_KIND_STDERR      = 2;  // Log from stderr.
+  bytes data = 1; // Log message content.
 }
 
 // Enum to represent job statuses.
 enum JobStatus {
-  JOB_STATUS_UNKNOWN_UNSPECIFIED = 0;  // Default status, should not be used.
-  JOB_STATUS_CREATED             = 1;  // Job has been created but not started.
-  JOB_STATUS_RUNNING             = 2;  // Job is currently running.
-  JOB_STATUS_EXITED              = 3;  // Job has been stopped.
+  JOB_STATUS_UNKNOWN_UNSPECIFIED = 0; // Default status, should not be used.
+  JOB_STATUS_RUNNING = 1;             // Job is currently running.
+  JOB_STATUS_STOPPED = 2;             // Job has been stopped by a user.
+  JOB_STATUS_EXITED = 3;              // Job has exited on its own.
 }

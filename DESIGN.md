@@ -40,20 +40,34 @@ The server and client will communicate using a **gRPC** API and will use **mTLS*
 
 A reusable Go library that manages:
 
-  - **Job creation**: Creating new job with specific resource limits and with their own namespace.
-  - **Job lifecycle**: Starting, stopping, and querying the status of jobs.
+  - **Job creation**: Creating new job with preset resource limits and with their own namespace. Jobs will be automatically started.
+  - **Job lifecycle**: Stopping (i.e. sending SIGKILL to the process), and querying the status of jobs.
     - NOTE: As only one caller can `wait` on a process, we need to properly wrap this to support mutiple clients.
   - **Log streaming**: Providing real-time streaming of job logs (stdout and stderr).
     - NOTE: To support multiple clients, we need to implement a broadcast mechanism.
 
+##### IDs
+
 The Job Manager will use UUIDs as primary key to identify jobs. While we could simplify and use the PID, it would make it more difficult to expand later with a distributed system.
+
+##### Cgroups
+
+We'll use the cgroups v2 api to limit resources. Each job will have it's own group with it's iD, i.e. /sys/fs/cgroup/<job_id>.
+To limit resources we'll use the `cpu.max`, `mem.max` and `io.max` toggles.
+
+For production use, it may be interesting to create a parent cgroup and have the jobs run in a sub cgroup, which would allow execution as non-root.
+We may also want to consider to implement more toggles for flexibility.
+
+##### Broadcast
+
+A broadcaster will be implemented, to acheive this, we'll use a simplified Broker pattern, any consumer wanting to see the logs will need to first 'subscribe' at which point it will receive any new data.
+If no consumer are subscribed, the data gets discarded, we'll need to make sure to always have a subscriber to be able to retrieve logs from the beginning.
 
 #### 2. **gRPC API**
 
 The gRPC API exposes the following methods:
 
-- **CreateJob**: Creates a new job with specified resource limits but does not start it.
-- **StartJob**: Starts a previously created job.
+- **StartJob**: Creates and starts a new job with preset resource limits.
 - **StopJob**: Stops a running job.
 - **GetJobStatus**: Retrieves the status of a job.
 - **StreamLogs**: Streams logs for a running job.
@@ -62,7 +76,6 @@ Example proto definitions (see [api/api.proto](api/api.proto) for full definitio
 
 ```proto
 service TelePilot {
-    rpc CreateJob (CreateJobRequest) returns (CreateJobResponse);
     rpc StartJob (StartJobRequest) returns (StartJobResponse);
     rpc StopJob (StopJobRequest) returns (StopJobResponse);
     rpc GetJobStatus (JobStatusRequest) returns (JobStatusResponse);
@@ -70,13 +83,34 @@ service TelePilot {
 }
 ```
 
-The API server will be serve using TLS 1.3 (latest as of the time of the writing), allowing the recommended ciphers
+##### SSL Configuration
 
-Tradeoffs / Considerations for production:
+The API server will be serve using TLS 1.3 (latest as of the time of the writing), allowing the recommded curves for key exchange:
+- X25519 
+- P521
+- P384
+- P256
+and the recommended ciphersuites:
+- CHACHA20_POLY1305_SHA256
+- AES_256_GCM_SHA384
+- AES_128_GCM_SHA256
 
-- The server will use a self-signed root CA. A proper one should be used with they private key well guarded.
+Certificates are using the ECDSA signature algorithm.
+
+See https://www.iana.org/assignments/tls-parameters/tls-parameters.xml for more details. 
+
+##### mTLS / User management
+
+The users are identified by validated their certificate and using the presented Subject field.
+
+The project will come with 3 preset users, by any new user can be added by using `make certs/client-<name>.pem` will generate and sign the new client files.
+
+##### Tradeoffs / Considerations for production:
+
+- The server will use a self-signed root CA shared between client/server. A proper CA should be used with it's private key well guarded. A different CA should be used for the user management and server verification.
 - User management is implemented in the Makefile with a pre-set number of user accounts: `alice`, `bob` and `dave`. A proper user management should be implemented.
-  - The authorization scheme is very basic: anyone can create jobs and read only their own job data. A proper authorization scheme should be implemented.
+  - The authorization scheme is very basic: anyone can start jobs and stop/lookup/stream logs only on their own job. A proper authorization scheme should be implemented.
+- The resource limits are preset. It should be settable by the user, ideally in a human readable way.
 
 #### 3. CLI
 
@@ -85,14 +119,23 @@ The CLI will provide commands for:
 Server:
   - Start the server
 
-Cient:
-  - create: Create a job with specified CPU, memory, and I/O limits.
-  - start: Start a created job.
-  - stop: Stop a running job.
-  - wait: Wait for a job to end.
+The CLI default certs directory is `./certs` and can be changed with `-certs <certs dir>`. The following files are required:
+  - `<certs dir>/ca.pem` CA for clients
+  - `<certs dir>/server.pem` server certificate
+  - `<certs dir>/server-key.pem` server private key
+
+Client:
+  - start: Create and sart a job with pre-defined CPU, memory, and I/O limits.
+  - stop: Stop a running job (Send SIGKILL to the underlying process).
   - status: Get the current status and resource usage of a job.
   - logs: Stream logs for a running job. Gets all logs from the beginning and streams them until the process dies.
-  - run: Wraps create/start/logs.
+
+The CLI defaults to the user 'alice' and looks for the certs in `./certs`. This can be changed with the `-user <name>` and `-certs <certs dir>` flags. For the sake of the exercise, we won't implement flags for each files and always expect the following: 
+  - `<certs dir>/ca.pem` server's CA
+  - `<certs dir>/client-<name>.pem` client certificate
+  - `<certs dir>/client-<name>-key.pem` client private key
+
+As it is an excercise, the address for both the client and server will be hardcoded to `localhost:9090`.
 
 Example usage:
 
@@ -105,32 +148,24 @@ telepilotd
 Run a job:
 
 ```bash
-job_id=$(telepilot create --cpu 0.5 --memory 512MB --io 10MB/s -- /bin/bash -c "echo Hello")
-telepilot start "${job_id}"
+job_id=$(telepilot start /bin/bash -c "echo Hello")
 telepilot status "${job_id}"
 telepilot logs "${job_id}"
-```
-
-or simply:
-
-```bash
-telepilot run bash -c "echo Hello"
+telepilot -user bob logs "${job_id}" # Expected to fail due to invalid authn.
 ```
 
 ### Tradeoffs / Limitations:
 
 - The full output of jobs will be stored in-memory, which can easily cause the service to crash with OOM.
-- PTY support is not implemented.
+- PTY support is not implemented. Stdout/Stderr are merged with no time tracking.
 - The environment variables cannot be set.
 - Input is not implemented, no data can be passed to the jobs beyond the initial commandline arguments.
   - This implies signal forwarding is not implemented as well (terminal resize, custom kill, etc).
-- Init process is not implemented which means
-  - While in it's own PID namespace, the process can still see, but not interract with the host processes
-  - While in it's own Mount namespace, the process can still see and interract with the host mountpoints at the time the process starts
-- User namespace is basic and only maps the host user (the one running the server) to root
+- Limited Init process will implemented which means that while in it's own Mount namespace, the process can still see and interract with the host mountpoints at the time the process starts
 - No veth pair is setup, while in it's own network namespace, the process has no network capability
 - No edit is implemented, any change require creating a new job.
 - No delete is implemented, as everything is in-memory, jobs exist as long as the service is running.
+- No list operation is implemented.
 
 Considerations for production:
 
@@ -140,16 +175,15 @@ Considerations for production:
 - Input should be implemented
   - Requires a 'reverse broadcast' to allow input from multiple clients for a single process.
   - Should implement signal forwarding (and mapping if a client is implemented for other OS than linux).
+- Stdout/Stderr should be split, log entries should include a timestamp.
 - PTY should be implemented
   - The excelent (no bias) lib https://github.com/creack/pty can be used.
-- An init process should be implemented to unshare/unmount the host file-system and setup the veth pair
+- A proper init process should be implemented to unshare/unmount the host file-system and setup the veth pair
   - Need to ensure the init process is statically linked to be able to run in a void chroot.
-  - This will 'hide' the host process from within the PID namespace as the process won't have access to the host's /proc.
   - This will require a valid chroot, any exported Docker image can work.
-  - Once the veth-pair is setup, the host side needs to configure the iptable to route traffic properly.
-- Proper CRUD should be implemented for jobs.
-
-NOTE: Based on time, or requirements clarification, the init process may be implemented for pid/mount isolation and maybe to enable networking.
+  - Once the veth-pair is setup, the host side needs to configure the iptables to route traffic properly.
+- Proper CRUD should be implemented for jobs, including listing.
+- Jobs should be able to run in their own user namespace
 
 ### Future improvments:
 
@@ -157,7 +191,7 @@ The number of possible features is limitless, but here are some that may be inte
 
 - Layered filesystem, ability to commit changes
   - Centralized Hub to push/pull filesystems (let's call them 'images')
-- Volume management, isolated or mounting from the host's filesystem.
+- Volume management, isolated ox  r mounting from the host's filesystem.
 - Isolated networking / job network assignment
 - Distributed networking
 - Secrets management
