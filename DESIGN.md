@@ -50,10 +50,24 @@ A reusable Go library that manages:
 
 The Job Manager will use UUIDs as primary key to identify jobs. While we could simplify and use the PID, it would make it more difficult to expand later with a distributed system.
 
+##### Namespaces
+
+To acheive isolation, namespaces will be used. We'll use the following `CloneFlags` as part of `SySprocAttr`:
+ - syscall.CLONE_NEWPID: PID namespace which will result in the process having it's own set of pid and run as pid 1.
+ - syscall.CLONE_NEWNS: Mount namespace which will result in the process having it's own set of mount points. For simplicity, in the exercise, we'll keep the shared parent mountpoints.
+ - syscall.CLONE_NEWNET: Network namespace which will result in the process having it's own set of network interfaces. We'll not implement veth pair / iptables so the process will have no connectivity.
+
 ##### Cgroups
 
-We'll use the cgroups v2 api to limit resources. Each job will have it's own group with it's iD, i.e. /sys/fs/cgroup/<job_id>.
+We'll use the cgroups v2 api to limit resources. Each job will have it's own group with it's iD, i.e. `/sys/fs/cgroup/<job_id>`.
 To limit resources we'll use the `cpu.max`, `mem.max` and `io.max` toggles.
+
+To place the process in the cgroup, `/sys/fs/cgroup/<job_id>` gets open with `os.Open` and the file description passed to `exec.Cmd` using the `UseCgroupFD` and `CgroupFD` fields from `SysProcAttr`.
+This leverages `clone(3)` and places the process in the cgroup upon creation.
+
+We'll use 0.5 CPU, 500MB memory and 1MB/s IO limits as hardcoded presets.
+
+To determine the major/minor for device IO limit we will scan `/proc/partition` and use the block devices numbers.
 
 For production use, it may be interesting to create a parent cgroup and have the jobs run in a sub cgroup, which would allow execution as non-root.
 We may also want to consider to implement more toggles for flexibility.
@@ -62,6 +76,7 @@ We may also want to consider to implement more toggles for flexibility.
 
 A broadcaster will be implemented, to acheive this, we'll use a simplified Broker pattern, any consumer wanting to see the logs will need to first 'subscribe' at which point it will receive any new data.
 If no consumer are subscribed, the data gets discarded, we'll need to make sure to always have a subscriber to be able to retrieve logs from the beginning.
+Before starting the process, we'll subscribe to the broadcast via an in-memory buffer. When streaming logs, we'll first send the buffer then the live feed.
 
 #### 2. **gRPC API**
 
@@ -101,7 +116,7 @@ See https://www.iana.org/assignments/tls-parameters/tls-parameters.xml for more 
 
 ##### mTLS / User management
 
-The users are identified by validated their certificate and using the presented Subject field.
+The users are identified by validated their certificate and using the presented CN part of the Subject field.
 
 The project will come with 3 preset users, by any new user can be added by using `make certs/client-<name>.pem` will generate and sign the new client files.
 
@@ -221,7 +236,7 @@ To ensure the isoaltion is working as expected some tests will be implemented to
 
 ### Resource limitations
 
-As cgroup resource monitoring will not be implemented, will provide some test scripts to run manually with a 3rd party monitoring tool like `htop`.
+As cgroup resource monitoring will not be implemented, will only test that the cgroup toggles are properly created with expected values.
 
 ## Code Quality
 
@@ -241,11 +256,11 @@ The `depguard` linter in particular is used to enforce the depdencies contraints
 
 ### Protobuf
 
-Clang-format is used to enforce the Protobuf coding style. See [.clang-format](.clang-format) for details.
+[Buf](https://buf.build/) will be used to enforce Protobuf coding style.
 
 ### YAML
 
-`yamllint` is used to enforce YAML style. See [.yamllint](.yamllint) for details.
+`yamllint` is used to enforce YAML style. See [.yamllint](.yamllint) for details. This is used to validate the GitHub actions.
 
 ## Conclusion
 
