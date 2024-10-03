@@ -59,18 +59,19 @@ To acheive isolation, namespaces will be used. We'll use the following `CloneFla
 
 ##### Cgroups
 
-We'll use the cgroups v2 api to limit resources. Each job will have it's own group with it's iD, i.e. `/sys/fs/cgroup/<job_id>`.
-To limit resources we'll use the `cpu.max`, `mem.max` and `io.max` toggles.
+We'll use the cgroups v2 api to limit resources. Each job will have it's own group with it's iD, i.e. `/sys/fs/cgroup/telepilot/<job_id>`.
+To limit resources we'll use the `cpu.max`, `memory.max` and `io.max` toggles.
 
-To place the process in the cgroup, `/sys/fs/cgroup/<job_id>` gets open with `os.Open` and the file description passed to `exec.Cmd` using the `UseCgroupFD` and `CgroupFD` fields from `SysProcAttr`.
+To support the sub-cgroups, we'll enable the `+cpu`, `+memory` and `+io` controllers in `/sys/fs/cgroup/telepilot/cgroup.subtree_control`.
+
+To place the process in the cgroup, `/sys/fs/cgroup/telepilot/<job_id>` gets open with `os.Open` and the file description passed to `exec.Cmd` using the `UseCgroupFD` and `CgroupFD` fields from `SysProcAttr`.
 This leverages `clone(3)` and places the process in the cgroup upon creation.
 
 We'll use 0.5 CPU, 500MB memory and 1MB/s IO limits as hardcoded presets.
 
-To determine the major/minor for device IO limit we will scan `/proc/partition` and use the block devices numbers.
+To determine the major/minor for device IO limit we will scan `/proc/partitions` and use the block devices numbers.
 
-For production use, it may be interesting to create a parent cgroup and have the jobs run in a sub cgroup, which would allow execution as non-root.
-We may also want to consider to implement more toggles for flexibility.
+For production, we may also want to consider to implement more toggles for flexibility.
 
 ##### Broadcast
 
