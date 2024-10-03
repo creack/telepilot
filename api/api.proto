@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package api;
+
+option go_package = "go.creack.net/telepilot/api";
+
+// Service definition for the TelePilot API.
+service TelePilot {
+  // Start a previously created job.
+  rpc StartJob(StartJobRequest) returns (StartJobResponse);
+
+  // Stop a running job.
+  rpc StopJob(StopJobRequest) returns (StopJobResponse);
+
+  // Get the status of a job.
+  rpc GetJobStatus(JobStatusRequest) returns (JobStatusResponse);
+
+  // Stream the logs of a running job.
+  rpc StreamLogs(LogRequest) returns (stream LogEntry);
+}
+
+// Request to create and start a job.
+message StartJobRequest {
+  string command = 1;       // Command to run.
+  repeated string args = 2; // Arguments for the command.
+}
+
+// Response for starting a job.
+message StartJobResponse {
+  string job_id = 1; // Unique ID (UUID) for the new job.
+}
+
+// Request to stop a running job.
+message StopJobRequest {
+  string job_id = 1; // ID of the job to stop.
+}
+
+// Response for stopping a job.
+message StopJobResponse {}
+
+// Request for the status of a job.
+message JobStatusRequest {
+  string job_id = 1; // ID of the job to get status for.
+}
+
+// Response with the status of a job.
+message JobStatusResponse {
+  JobStatus status = 1;         // Current status of the job.
+  optional int32 exit_code = 2; // Exit code if the job is done.
+}
+
+// Request to stream logs for a job.
+message LogRequest {
+  string job_id = 1; // ID of the job to stream logs for.
+}
+
+// Log entry response when streaming logs.
+message LogEntry {
+  bytes data = 1; // Log message content.
+}
+
+// Enum to represent job statuses.
+enum JobStatus {
+  JOB_STATUS_UNKNOWN_UNSPECIFIED = 0; // Default status, should not be used.
+  JOB_STATUS_RUNNING = 1;             // Job is currently running.
+  JOB_STATUS_STOPPED = 2;             // Job has been stopped by a user.
+  JOB_STATUS_EXITED = 3;              // Job has exited on its own.
+}
