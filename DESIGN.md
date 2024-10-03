@@ -52,7 +52,7 @@ The Job Manager will use UUIDs as primary key to identify jobs. While we could s
 
 ##### Namespaces
 
-To acheive isolation, namespaces will be used. We'll use the following `CloneFlags` as part of `SySprocAttr`:
+To acheive isolation, namespaces will be used. We'll use the following `CloneFlags` as part of `SysProcAttr`:
  - syscall.CLONE_NEWPID: PID namespace which will result in the process having it's own set of pid and run as pid 1.
  - syscall.CLONE_NEWNS: Mount namespace which will result in the process having it's own set of mount points. For simplicity, in the exercise, we'll keep the shared parent mountpoints.
  - syscall.CLONE_NEWNET: Network namespace which will result in the process having it's own set of network interfaces. We'll not implement veth pair / iptables so the process will have no connectivity.
@@ -91,11 +91,11 @@ The gRPC API exposes the following methods:
 Example proto definitions (see [api/api.proto](api/api.proto) for full definition):
 
 ```proto
-service TelePilot {
+service TelePilotService {
     rpc StartJob (StartJobRequest) returns (StartJobResponse);
     rpc StopJob (StopJobRequest) returns (StopJobResponse);
-    rpc GetJobStatus (JobStatusRequest) returns (JobStatusResponse);
-    rpc StreamLogs (LogRequest) returns (stream LogEntry);
+    rpc GetJobStatus (GetJobStatusRequest) returns (GetJobStatusResponse);
+    rpc StreamLogs (StreamLogsRequest) returns (stream StreamLogsResponse);
 }
 ```
 

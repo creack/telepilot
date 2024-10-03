@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package api;
+package api.v1;
 
-option go_package = "go.creack.net/telepilot/api";
+option go_package = "go.creack.net/telepilot/api/v1";
 
 // Service definition for the TelePilot API.
-service TelePilot {
+service TelePilotService {
   // Start a previously created job.
   rpc StartJob(StartJobRequest) returns (StartJobResponse);
 
@@ -13,15 +13,15 @@ service TelePilot {
   rpc StopJob(StopJobRequest) returns (StopJobResponse);
 
   // Get the status of a job.
-  rpc GetJobStatus(JobStatusRequest) returns (JobStatusResponse);
+  rpc GetJobStatus(GetJobStatusRequest) returns (GetJobStatusResponse);
 
   // Stream the logs of a running job.
-  rpc StreamLogs(LogRequest) returns (stream LogEntry);
+  rpc StreamLogs(StreamLogsRequest) returns (stream StreamLogsResponse);
 }
 
 // Request to create and start a job.
 message StartJobRequest {
-  string command = 1;       // Command to run.
+  string command = 1; // Command to run.
   repeated string args = 2; // Arguments for the command.
 }
 
@@ -39,30 +39,30 @@ message StopJobRequest {
 message StopJobResponse {}
 
 // Request for the status of a job.
-message JobStatusRequest {
+message GetJobStatusRequest {
   string job_id = 1; // ID of the job to get status for.
 }
 
 // Response with the status of a job.
-message JobStatusResponse {
-  JobStatus status = 1;         // Current status of the job.
+message GetJobStatusResponse {
+  JobStatus status = 1; // Current status of the job.
   optional int32 exit_code = 2; // Exit code if the job is done.
 }
 
 // Request to stream logs for a job.
-message LogRequest {
+message StreamLogsRequest {
   string job_id = 1; // ID of the job to stream logs for.
 }
 
 // Log entry response when streaming logs.
-message LogEntry {
+message StreamLogsResponse {
   bytes data = 1; // Log message content.
 }
 
 // Enum to represent job statuses.
 enum JobStatus {
   JOB_STATUS_UNKNOWN_UNSPECIFIED = 0; // Default status, should not be used.
-  JOB_STATUS_RUNNING = 1;             // Job is currently running.
-  JOB_STATUS_STOPPED = 2;             // Job has been stopped by a user.
-  JOB_STATUS_EXITED = 3;              // Job has exited on its own.
+  JOB_STATUS_RUNNING = 1; // Job is currently running.
+  JOB_STATUS_STOPPED = 2; // Job has been stopped by a user.
+  JOB_STATUS_EXITED = 3; // Job has exited on its own.
 }
