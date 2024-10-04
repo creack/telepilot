@@ -4,6 +4,7 @@ package jobmanager
 import (
 	"errors"
 	"io"
+	"os/exec"
 	"sync"
 
 	"github.com/google/uuid"
@@ -16,7 +17,7 @@ var (
 
 // JobManager defines the methods available to interact with the lib.
 type JobManager interface {
-	StartJob(cmd string, args []string) (uuid.UUID, error)
+	StartJob(owner, cmd string, args []string) (uuid.UUID, error)
 	StopJob(id uuid.UUID) error
 	LookupJob(id uuid.UUID) (*Job, error) // Used to for GetJobStatus and to lookup a job owner.
 	StreamLogs(id uuid.UUID) (io.Reader, error)
@@ -26,7 +27,6 @@ type JobManager interface {
 type jobManager struct {
 	JobManager
 
-	//nolint:unused // TODO: Implement.
 	mu   sync.RWMutex
 	jobs map[uuid.UUID]*Job
 }
@@ -36,4 +36,25 @@ type jobManager struct {
 //nolint:ireturn // Expected interface return.
 func NewJobManager() JobManager {
 	return &jobManager{jobs: map[uuid.UUID]*Job{}}
+}
+
+func (jm *jobManager) StartJob(owner, cmd string, args []string) (uuid.UUID, error) {
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
+
+	jobID := uuid.New()
+	// NOTE: Focusing on Auth at the moment, the jobs are just placeholders, not actually started.
+	jm.jobs[jobID] = &Job{Owner: owner, Cmd: exec.Command(cmd, args...)}
+
+	return jobID, nil
+}
+
+func (jm *jobManager) LookupJob(id uuid.UUID) (*Job, error) {
+	jm.mu.RLock()
+	j := jm.jobs[id]
+	jm.mu.RUnlock()
+	if j == nil {
+		return nil, ErrJobNotFound
+	}
+	return j, nil
 }

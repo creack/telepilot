@@ -16,5 +16,6 @@ const (
 
 // Job represent an individual job.
 type Job struct {
+	Owner string
 	*exec.Cmd
 }
