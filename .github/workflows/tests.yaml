@@ -15,7 +15,7 @@ jobs:
       - name: Build
         run: |
           # No need to build the protobuf image in the CI.
-          mkdir -p .build && touch .build/docker-protobuf
+          mkdir -p .build && touch .build/docker-protobuf api/v1/*.go
           make build -j
 
   # Run the actual tests.
@@ -28,5 +28,5 @@ jobs:
       - name: Run go test
         run: |
           # No need to build the protobuf image in the CI.
-          mkdir -p .build && touch .build/docker-protobuf
+          mkdir -p .build && touch .build/docker-protobuf api/v1/*.go
           make test -j
