@@ -35,7 +35,7 @@ func HandlerMiddleware(
 	return handler(ctx, req)
 }
 
-// HandlerMiddleware handles the authn from mtls for streaming endpoints.
+// StreamingMiddleware handles the authn from mtls for streaming endpoints.
 func StreamingMiddleware(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	ctx := ss.Context()
 	// You can write your own code here to check client tls certificate.
