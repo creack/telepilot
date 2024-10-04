@@ -14,9 +14,9 @@ include make/go-lint.mk
 .PHONY: all
 all: build mtls
 
-# Latest as of 2024-09-30.
-GO_IMG = golang:1.23.1-alpine@sha256:ac67716dd016429be8d4c2c53a248d7bcdf06d34127d3dc451bda6aa5a87bc06
-GO_BIN = docker run --rm -it -u "$(shell id -u):$(shell id -g)" -v "${PWD}:/src" -w /src -v $(shell go env GOMODCACHE || echo "${PWD}/.build/gomodcache"):/gomodcache -e GOCACHE=/src/.build/gocache -e GOMODCACHE=/gomodcache -e GOOS=linux -e GOARCH=amd64 ${GO_IMG}
+# Latest as of 2024-10-03.
+GO_IMG = golang:1.23.2-alpine@sha256:9dd2625a1ff2859b8d8b01d8f7822c0f528942fe56cfe7a1e7c38d3b8d72d679
+GO_BIN = docker run --rm -u "$(shell id -u):$(shell id -g)" -v "${PWD}:/src" -w /src -v $(shell go env GOMODCACHE || echo "${PWD}/.build/gomodcache"):/gomodcache -e GOCACHE=/src/.build/gocache -e GOMODCACHE=/gomodcache -e GOOS=linux -e GOARCH=amd64 ${GO_IMG}
 
 .PHONY: build
 build: bin/telepilot bin/telepilotd

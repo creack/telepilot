@@ -8,7 +8,7 @@ PROTOC_IMG = protobuf
 # To skip docker and use system's protoc:
 #     mkdir -p .build && touch .build/docker-protobuf-grpc && export PROTOC_BIN=protoc
 #     make <target>
-PROTOC_BIN = docker run --rm -it -u "$(shell id -u):$(shell id -g)" -v "${PWD}:/proto" -w /proto ${PROTOC_IMG}
+PROTOC_BIN = docker run --rm -u "$(shell id -u):$(shell id -g)" -v "${PWD}:/proto" -w /proto ${PROTOC_IMG}
 
 .PHONY: proto
 proto: ${PROTO_GENS}
