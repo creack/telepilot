@@ -10,9 +10,7 @@
     "profiles": {
       "server": {
         "usages": [
-          "signing",
-          "digital signing",
-          "key encipherment",
+          "digital signature",
           "server auth"
         ],
         "expiry": "87600h"
