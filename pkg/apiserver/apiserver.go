@@ -48,7 +48,7 @@ func (s *Server) ListenAndServe(addr string) error {
 		return fmt.Errorf("listen: %w", err)
 	}
 	log.Printf("Server listening at %s.", lis.Addr())
-	return nil
+	return s.Serve(lis)
 }
 
 func (s *Server) Serve(lis net.Listener) error {

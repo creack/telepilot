@@ -2,7 +2,10 @@ package test
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
+	"os"
+	"path"
 	"testing"
 
 	"go.creack.net/telepilot/pkg/apiclient"
@@ -20,32 +23,52 @@ func noError(t *testing.T, err error, msg string) {
 }
 
 func assert[T comparable](t *testing.T, expect, got T, msg string) {
+	t.Helper()
 	if expect != got {
 		t.Fatalf("Assert fail: %s:\n Expect:\t%v\n Got:\t%v", msg, expect, got)
 	}
 }
 
+func loadTLSConfig(t *testing.T, name string) *tls.Config {
+	t.Helper()
+	const certDir = "../certs"
+
+	// Make sure we have the expected key. Just check for one, assume that the ca and cert are present if the key is there.
+	if _, err := os.Stat(path.Join(certDir, name+".pem")); err != nil {
+		t.Skip("Missing cert, skipping. Make sure to run `make mtls` first or invoke tests with `make test`.")
+	}
+	cfg, err := tlsconfig.LoadTLSConfig(
+		path.Join(certDir, name+".pem"),
+		path.Join(certDir, name+"-key.pem"),
+		path.Join(certDir, "ca.pem"),
+		name != "server",
+	)
+	noError(t, err, "Load certs for "+name)
+	return cfg
+}
+
 func TestHappyPath(t *testing.T) {
 	t.Parallel()
 
-	aliceTLSConfig, err := tlsconfig.LoadTLSConfig("../certs/client-alice.pem", "../certs/client-alice-key.pem", "../certs/ca.pem", true)
-	noError(t, err, "Load alice certs")
+	// Load certs for the server and a couple of clients.
+	serverTLSConfig := loadTLSConfig(t, "server")
+	aliceTLSConfig := loadTLSConfig(t, "client-alice")
+	bobTLSConfig := loadTLSConfig(t, "client-bob")
 
-	bobTLSConfig, err := tlsconfig.LoadTLSConfig("../certs/client-bob.pem", "../certs/client-bob-key.pem", "../certs/ca.pem", true)
-	noError(t, err, "Load bob certs")
-
-	serverTLSConfig, err := tlsconfig.LoadTLSConfig("../certs/server.pem", "../certs/server-key.pem", "../certs/ca.pem", false)
-	noError(t, err, "Load server certs")
-
+	// Create a server.
 	srv := apiserver.NewServer(serverTLSConfig)
 
+	// Listen on a random port.
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	noError(t, err, "Listen")
+	t.Cleanup(func() { _ = lis.Close() }) // No strictly needed, but just to make sure.
 
+	// Start the server.
 	doneCh := make(chan struct{})
 	go func() { defer close(doneCh); noError(t, srv.Serve(lis), "Serve") }()
-	t.Cleanup(func() { noError(t, srv.Close(), "Closing server."); <-doneCh })
+	t.Cleanup(func() { noError(t, srv.Close(), "Closing server."); <-doneCh }) // Wait for the server to be fully closed.
 
+	// Create clients.
 	aliceClient, err := apiclient.NewClient(aliceTLSConfig, lis.Addr().String())
 	noError(t, err, "NewClient for Alice")
 	t.Cleanup(func() { noError(t, aliceClient.Close(), "Closing Alice's client.") })
@@ -56,9 +79,11 @@ func TestHappyPath(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Create a Job.
 	jobID, err := aliceClient.StartJob(ctx, "foo", nil)
 	noError(t, err, "Alice start job.")
 
+	// Stop the Job from the same user.
 	t.Run("happy alice", func(t *testing.T) {
 		t.Parallel()
 		st, ok := status.FromError(aliceClient.StopJob(ctx, jobID))
@@ -68,6 +93,7 @@ func TestHappyPath(t *testing.T) {
 		assert(t, codes.Unimplemented, st.Code(), "invalid grpc status code")
 	})
 
+	// Attempt to stop the job from a different user.
 	t.Run("sad bob", func(t *testing.T) {
 		t.Parallel()
 		st, ok := status.FromError(bobClient.StopJob(ctx, jobID))
