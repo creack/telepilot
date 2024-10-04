@@ -1,4 +1,4 @@
-package test
+package telepilot_test
 
 import (
 	"context"
@@ -8,11 +8,12 @@ import (
 	"path"
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"go.creack.net/telepilot/pkg/apiclient"
 	"go.creack.net/telepilot/pkg/apiserver"
 	"go.creack.net/telepilot/pkg/tlsconfig"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func noError(t *testing.T, err error, msg string) {
