@@ -27,6 +27,7 @@ certs/client-%.pem: certs/client-%.csr certs/client-%-key.pem certs/ca.pem certs
 certs/server-key.pem: .build/docker-${CFSSL_IMG} make/csr-server.json
 	mkdir -p $(dir $@)
 	${CFSSL_BIN} cfssl genkey make/csr-server.json | ${CFSSL_BIN} sh -c 'cd certs && cfssljson -bare server'
+.INTERMEDIATE: certs/server.csr
 certs/server.csr: certs/server-key.pem
 
 # Generate the Certificates.
