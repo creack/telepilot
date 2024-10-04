@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1
+
+# Latest as of 2024-10-03.
+ARG GO_VERSION="1.23.2-alpine@sha256:9dd2625a1ff2859b8d8b01d8f7822c0f528942fe56cfe7a1e7c38d3b8d72d679"
+
+FROM golang:${GO_VERSION}
+
+# Latest versions as of 2024-09-30.
+# TODO: Include and enforce checksum. Trusting the Golang proxy for now.
+ARG CFSSL_VERSION="1.6.5"
+
+# Install cfssl and cfssljson.
+RUN go install github.com/cloudflare/cfssl/cmd/...@v${CFSSL_VERSION}
+
+CMD ["/go/bin/cfssl"]
