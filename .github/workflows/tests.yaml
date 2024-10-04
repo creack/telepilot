@@ -13,8 +13,12 @@ jobs:
       # NOTE: We trust Github.
       - uses: actions/checkout@v4
       - name: Build
-        run: make build
+        run: |
+          # No need to build the protobuf image in the CI.
+          mkdir -p .build && touch .build/docker-protobuf
+          make build -j
 
+  # Run the actual tests.
   go-tests:
     name: Go Tests
     runs-on: ubuntu-latest
@@ -22,4 +26,7 @@ jobs:
       # NOTE: We trust GitHub.
       - uses: actions/checkout@v4
       - name: Run go test
-        run: make test
+        run: |
+          # No need to build the protobuf image in the CI.
+          mkdir -p .build && touch .build/docker-protobuf
+          make test -j
