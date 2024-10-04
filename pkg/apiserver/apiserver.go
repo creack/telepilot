@@ -25,7 +25,7 @@ type Server struct {
 
 	grpcServer *grpc.Server
 
-	jobmanager jobmanager.JobManager
+	jobmanager *jobmanager.JobManager
 }
 
 func NewServer(tlsConfig *tls.Config) *Server {

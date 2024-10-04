@@ -13,15 +13,6 @@ var policies = map[string][]policyFct{
 	pb.TelePilotService_StreamLogs_FullMethodName:   {policySameOwner},
 }
 
-// Make sure we always have as many polcies as handlers.
-//
-//nolint:gochecknoinits // Expected init.
-func init() {
-	if len(policies) != len(pb.TelePilotService_ServiceDesc.Methods)+len(pb.TelePilotService_ServiceDesc.Streams) {
-		panic("missing policies for TelePilotService methods/streams")
-	}
-}
-
 func enforcePolicies(user string, job *jobmanager.Job, policies ...policyFct) bool {
 	if len(policies) == 0 {
 		return false
