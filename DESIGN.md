@@ -231,7 +231,6 @@ Both the happy and error paths will be tested to ensure that:
 
 To ensure the isoaltion is working as expected some tests will be implemented to ensure that:
 - the job is running with pid 1
-- a file created as root within a job end up as the external user on disc
 - network is not available and only one interface (loopback) is available
 - adding a new mountpoint in one job doesn't impact another
 

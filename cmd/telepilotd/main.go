@@ -34,6 +34,7 @@ func main() {
 	doneCh := make(chan struct{})
 	go func() {
 		defer close(doneCh)
+		// TODO: Consider making the addr a flag.
 		if err := s.ListenAndServe("localhost:9090"); err != nil {
 			log.Fatal(err)
 		}

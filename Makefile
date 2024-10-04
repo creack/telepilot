@@ -25,7 +25,7 @@ bin/%: cmd/% ${GO_SRCS} ${PROTO_GENS}
 	${GO_BIN} go build -ldflags '-w -s' -o $@ ./cmd/${*}
 
 .PHONY: test
-test: proto
+test: proto mtls
 	${GO_BIN} go test -v ./...
 
 # Run all linters.

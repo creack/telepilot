@@ -48,6 +48,7 @@ func main() {
 			if err != nil {
 				return fmt.Errorf("load tls config for %q from %q: %w", user, certDir, err)
 			}
+			// TODO: Consider making the addr a flag.
 			c, err := apiclient.NewClient(tlsConfig, "localhost:9090")
 			if err != nil {
 				return fmt.Errorf("connect: %w", err)
