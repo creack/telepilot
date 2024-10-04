@@ -3,9 +3,7 @@
     "default": {
       "expiry": "87600h",
       "usages": [
-        "signing",
         "digital signature",
-        "key encipherment",
         "client auth"
       ]
     },
