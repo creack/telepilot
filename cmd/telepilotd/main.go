@@ -4,7 +4,7 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
+	"log" // TODO: Consider using slog.
 	"os/signal"
 	"path"
 	"syscall"
@@ -31,7 +31,9 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	doneCh := make(chan struct{})
 	go func() {
+		defer close(doneCh)
 		if err := s.ListenAndServe("localhost:9090"); err != nil {
 			log.Fatal(err)
 		}
@@ -40,4 +42,6 @@ func main() {
 	<-ctx.Done()
 	log.Println("Bye.")
 	_ = s.Close() // Best effort.
+	// TODO: Consider adding a timeout.
+	<-doneCh
 }

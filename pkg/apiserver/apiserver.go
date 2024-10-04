@@ -47,6 +47,8 @@ func (s *Server) ListenAndServe(addr string) error {
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
+	// NOTE: s.Serve takes ownership of lis. GracefulStop in s.Close() will invoke lis.Close().
+
 	log.Printf("Server listening at %s.", lis.Addr())
 	return s.Serve(lis)
 }

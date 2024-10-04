@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log" // TODO: Consider using slog.
 	"os"
 	"path"
 
@@ -57,7 +57,10 @@ func main() {
 		},
 		// After any command, disconnect.
 		After: func(_ context.Context, _ *cli.Command) error {
-			return client.Close()
+			if client != nil {
+				return client.Close()
+			}
+			return nil
 		},
 		Commands: []*cli.Command{
 			{

@@ -18,7 +18,7 @@ ${PROTO_GENS}: .build/docker-${PROTOC_IMG}
 
 # The generated files depend on their proto definition.
 %.pb.go %_grpc.pb.go: %.proto
-	${PROTOC_BIN} --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative $<
+	${PROTOC_BIN} --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=module=go.creack.net/telepilot $<
 
 # Full cleanup.
 .PHONY: fclean-proto

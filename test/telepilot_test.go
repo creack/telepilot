@@ -47,7 +47,7 @@ func loadTLSConfig(t *testing.T, name string) *tls.Config {
 	return cfg
 }
 
-func TestHappyPath(t *testing.T) {
+func TestStartStop(t *testing.T) {
 	t.Parallel()
 
 	// Load certs for the server and a couple of clients.
