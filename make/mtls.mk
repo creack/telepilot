@@ -8,10 +8,11 @@ CFSSL_BIN = docker run --rm -i -u "$(shell id -u):$(shell id -g)" -v "${PWD}:/ss
 mtls: certs/server.pem ${MTLS_CLIENTS:%=certs/client-%.pem}
 
 # Generate the self-signed root CA.
-certs/ca-key.pem certs/ca.pem: .build/docker-${CFSSL_IMG} make/csr.json
+certs/ca.pem: .build/docker-${CFSSL_IMG} make/csr.json
 	mkdir -p $(dir $@)
 	sed 's/{{CN}}/ca/' make/csr.json | ${CFSSL_BIN} cfssl genkey -initca - | ${CFSSL_BIN} sh -c 'cd certs && cfssljson -bare ca'
 	rm certs/ca.csr
+certs/ca-key.pem: certs/ca.pem
 
 # Generate the Private key and Cert Sign Requests (CSR).
 certs/client-%.csr certs/client-%-key.pem: .build/docker-${CFSSL_IMG} make/csr.json
@@ -23,9 +24,10 @@ certs/client-%.pem: certs/client-%.csr certs/client-%-key.pem certs/ca.pem certs
 	sed 's/{{CN}}/${*}/' make/csr.json | ${CFSSL_BIN} sh -c 'cd certs && cfssl sign -ca ca.pem -ca-key ca-key.pem -config ../make/cfssl.json -profile ${*} client-${*}.csr' | ${CFSSL_BIN} sh -c 'cd certs && cfssljson -bare client-${*}'
 
 # Generate the Private key and Cert Sign Requests (CSR).
-certs/server.csr certs/server-key.pem: .build/docker-${CFSSL_IMG} make/csr-server.json
+certs/server-key.pem: .build/docker-${CFSSL_IMG} make/csr-server.json
 	mkdir -p $(dir $@)
 	${CFSSL_BIN} cfssl genkey make/csr-server.json | ${CFSSL_BIN} sh -c 'cd certs && cfssljson -bare server'
+certs/server.csr: certs/server-key.pem
 
 # Generate the Certificates.
 certs/server.pem: certs/server.csr certs/server-key.pem certs/ca.pem certs/ca-key.pem make/csr.json make/cfssl.json
