@@ -100,7 +100,6 @@ func TestStartStop(t *testing.T) {
 		st, ok := status.FromError(bobClient.StopJob(ctx, jobID))
 		assert(t, true, ok, "extract grpc status from error")
 
-		// TODO: Change this to noError once implemented.
 		assert(t, codes.PermissionDenied, st.Code(), "invalid grpc status code")
 	})
 }
