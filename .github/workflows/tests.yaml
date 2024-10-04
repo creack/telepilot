@@ -1,0 +1,25 @@
+---
+name: Tests
+
+'on':
+  pull_request:
+
+jobs:
+  # Make sure the binaries are built without error.
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      # NOTE: We trust Github.
+      - uses: actions/checkout@v4
+      - name: Build
+        run: make build
+
+  go-tests:
+    name: Go Tests
+    runs-on: ubuntu-latest
+    steps:
+      # NOTE: We trust GitHub.
+      - uses: actions/checkout@v4
+      - name: Run go test
+        run: make test
