@@ -10,7 +10,7 @@ mtls: certs/server.pem ${MTLS_CLIENTS:%=certs/client-%.pem}
 # Generate the self-signed root CA.
 certs/ca-key.pem certs/ca.pem: .build/docker-${CFSSL_IMG} make/csr.json
 	@mkdir -p $(dir $@)
-	cat make/csr.json | sed 's/{{CN}}/ca/' | ${CFSSL_BIN} cfssl genkey -initca - | ${CFSSL_BIN} sh -c 'cd certs && cfssljson -bare ca'
+	sed 's/{{CN}}/ca/' make/csr.json | ${CFSSL_BIN} cfssl genkey -initca - | ${CFSSL_BIN} sh -c 'cd certs && cfssljson -bare ca'
 	@rm certs/ca.csr
 
 # Generate the Private key and Cert Sign Requests (CSR).
