@@ -6,22 +6,33 @@ import (
 	"flag"
 	"log"
 	"os/signal"
+	"path"
 	"syscall"
 
 	"go.creack.net/telepilot/pkg/apiserver"
+	"go.creack.net/telepilot/pkg/tlsconfig"
 )
 
 func main() {
 	keyDir := flag.String("certs", "./certs",
 		"Certs directory. Expecting <certdir>/ca.pem, <certdir>/server.pem and <certdir>/server-key.pem.")
+	tlsConfig, err := tlsconfig.LoadTLSConfig(
+		path.Join(*keyDir, "server.pem"),
+		path.Join(*keyDir, "server-key.pem"),
+		path.Join(*keyDir, "ca.pem"),
+		false,
+	)
+	if err != nil {
+		log.Fatalf("Failed to load tls config from %q: %s.", *keyDir, err)
+	}
 
-	s := &apiserver.Server{}
+	s := apiserver.NewServer(tlsConfig)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	go func() {
-		if err := s.Serve(*keyDir); err != nil {
+		if err := s.ListenAndServe("localhost:9090"); err != nil {
 			log.Fatal(err)
 		}
 	}()

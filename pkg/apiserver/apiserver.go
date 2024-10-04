@@ -1,18 +1,17 @@
 package apiserver
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
 	"net"
-	"path"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	pb "go.creack.net/telepilot/api/v1"
 	"go.creack.net/telepilot/pkg/jobmanager"
-	"go.creack.net/telepilot/pkg/tlsconfig"
 )
 
 // Common errors.
@@ -29,18 +28,10 @@ type Server struct {
 	jobmanager jobmanager.JobManager
 }
 
-func (s *Server) Serve(certDir string) error {
-	s.jobmanager = jobmanager.NewJobManager()
-	tlsConfig, err := tlsconfig.LoadTLSConfig(
-		path.Join(certDir, "server.pem"),
-		path.Join(certDir, "server-key.pem"),
-		path.Join(certDir, "ca.pem"),
-		false,
-	)
-	if err != nil {
-		return fmt.Errorf("load tls config from %q: %w", certDir, err)
+func NewServer(tlsConfig *tls.Config) *Server {
+	s := &Server{
+		jobmanager: jobmanager.NewJobManager(),
 	}
-
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
 		grpc.UnaryInterceptor(s.UnaryMiddleware),
@@ -48,14 +39,20 @@ func (s *Server) Serve(certDir string) error {
 	)
 	pb.RegisterTelePilotServiceServer(grpcServer, s)
 	s.grpcServer = grpcServer
+	return s
+}
 
-	lis, err := net.Listen("tcp", "localhost:9090")
+func (s *Server) ListenAndServe(addr string) error {
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
-
 	log.Printf("Server listening at %s.", lis.Addr())
-	if err := grpcServer.Serve(lis); err != nil {
+	return nil
+}
+
+func (s *Server) Serve(lis net.Listener) error {
+	if err := s.grpcServer.Serve(lis); err != nil {
 		return fmt.Errorf("grpc serve: %w", err)
 	}
 	return nil

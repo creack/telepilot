@@ -2,16 +2,15 @@ package apiclient
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
-	"path"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	pb "go.creack.net/telepilot/api/v1"
-	"go.creack.net/telepilot/pkg/tlsconfig"
 )
 
 // Client is our client business logic. It is the high level API Client.
@@ -20,27 +19,13 @@ type Client struct {
 	client pb.TelePilotServiceClient
 }
 
-// Connect loads the tls config and connects to the server.
-//
-// NOTE: The individual files loaded should be configarable.
-// NOTE: We hard-code the server address, for production, ths should be configurable.
-func (c *Client) Connect(certDir, user string) error {
-	tlsConfig, err := tlsconfig.LoadTLSConfig(
-		path.Join(certDir, "client-"+user+".pem"),
-		path.Join(certDir, "client-"+user+"-key.pem"),
-		path.Join(certDir, "ca.pem"),
-		true,
-	)
+// NewClient connects to the server.
+func NewClient(tlsConfig *tls.Config, addr string) (*Client, error) {
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	if err != nil {
-		return fmt.Errorf("load tls config for %q from %q: %w", user, certDir, err)
+		return nil, fmt.Errorf("grpc new client: %w", err)
 	}
-	conn, err := grpc.NewClient("localhost:9090", grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	if err != nil {
-		return fmt.Errorf("grpc new client: %w", err)
-	}
-	c.conn = conn
-	c.client = pb.NewTelePilotServiceClient(conn)
-	return nil
+	return &Client{conn: conn, client: pb.NewTelePilotServiceClient(conn)}, nil
 }
 
 // Close the connection if connected.

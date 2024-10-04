@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 
 	"github.com/google/uuid"
 	"github.com/urfave/cli/v3"
 
 	"go.creack.net/telepilot/pkg/apiclient"
+	"go.creack.net/telepilot/pkg/tlsconfig"
 )
 
 //nolint:funlen // Acceptable for CLI definition.
 func main() {
-	var client apiclient.Client
+	var client *apiclient.Client
 	var jobID uuid.UUID
 
 	jobIDArg := &cli.StringArg{
@@ -33,11 +35,24 @@ func main() {
 	}
 
 	cmd := &cli.Command{
-		// Before any command, connect to the server.
+		// Before any command, load the certs and connect to the server.
 		Before: func(_ context.Context, cmd *cli.Command) error {
-			if err := client.Connect(cmd.String("certs"), cmd.String("user")); err != nil {
+			certDir := cmd.String("certs")
+			user := cmd.String("user")
+			tlsConfig, err := tlsconfig.LoadTLSConfig(
+				path.Join(certDir, "client-"+user+".pem"),
+				path.Join(certDir, "client-"+user+"-key.pem"),
+				path.Join(certDir, "ca.pem"),
+				true,
+			)
+			if err != nil {
+				return fmt.Errorf("load tls config for %q from %q: %w", user, certDir, err)
+			}
+			c, err := apiclient.NewClient(tlsConfig, "localhost:9090")
+			if err != nil {
 				return fmt.Errorf("connect: %w", err)
 			}
+			client = c
 			return nil
 		},
 		// After any command, disconnect.
