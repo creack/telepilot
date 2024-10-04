@@ -15,6 +15,8 @@ var (
 )
 
 // JobManager defines the methods available to interact with the lib.
+//
+// TODO: Make this a struct instead. Currently just a blank mock to highlight the upcoming methods.
 type JobManager interface {
 	StartJob(cmd string, args []string) (uuid.UUID, error)
 	StopJob(id uuid.UUID) error

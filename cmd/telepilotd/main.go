@@ -3,7 +3,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log" // TODO: Consider using slog.
 	"net"
 	"os/signal"
 	"syscall"
@@ -15,7 +15,8 @@ import (
 	pb "go.creack.net/telepilot/api/v1"
 )
 
-// server is used to implement api.TelePilot.
+// server is used to implement api.TelePilotService.
+// NOTE: Currently just a mock, will be moved in a package in follow-up PRs.
 type server struct {
 	pb.UnimplementedTelePilotServiceServer
 }
@@ -60,11 +61,14 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	doneCh := make(chan struct{})
 	go func() {
+		// TODO: Consider having a flag for the addr.
 		lis, err := net.Listen("tcp", "localhost:9090")
 		if err != nil {
 			log.Fatalf("Failed to listen: %s.", err)
 		}
+		// NOTE: s.Serve takes ownership of lis. GracefulStop will invoke lis.Close().
 
 		log.Printf("Server listening at %s.", lis.Addr())
 		if err := s.Serve(lis); err != nil {
@@ -75,4 +79,6 @@ func main() {
 	<-ctx.Done()
 	log.Println("Bye.")
 	s.GracefulStop()
+	// TODO: Consider adding a timeout.
+	<-doneCh
 }

@@ -21,7 +21,7 @@ GO_BIN = docker run --rm -u "$(shell id -u):$(shell id -g)" -v "${PWD}:/src" -w 
 .PHONY: build
 build: bin/telepilot bin/telepilotd
 bin/%: cmd/% ${GO_SRCS} ${PROTO_GENS}
-	@mkdir -p $(dir $@)
+	mkdir -p $(dir $@)
 	${GO_BIN} go build -ldflags '-w -s' -o $@ ./cmd/${*}
 
 .PHONY: test

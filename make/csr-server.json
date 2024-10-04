@@ -1,4 +1,5 @@
 {
+  "hosts": ["localhost", "127.0.0.1"],
   "key": {
     "algo": "ecdsa",
     "size": 256

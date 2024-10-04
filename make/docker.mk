@@ -4,9 +4,9 @@
 #   Docker image: <name>
 #   Context: Repository root
 .build/docker-%: make/Dockerfile.%
-	@mkdir -p $(dir $@)
+	mkdir -p $(dir $@)
 	docker build -t ${*} -f $< .
-	@touch $@
+	touch $@
 
 .PHONY: clean-docker
 clean-docker:

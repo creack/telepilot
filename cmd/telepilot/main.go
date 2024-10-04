@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log" // TODO: Consider using slog.
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
