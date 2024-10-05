@@ -87,11 +87,8 @@ func TestStartStop(t *testing.T) {
 	// Stop the Job from the same user.
 	t.Run("happy alice", func(t *testing.T) {
 		t.Parallel()
-		st, ok := status.FromError(aliceClient.StopJob(ctx, jobID))
-		assert(t, true, ok, "extract grpc status from error")
 
-		// TODO: Change this to noError once implemented.
-		assert(t, codes.Unimplemented, st.Code(), "invalid grpc status code")
+		noError(t, aliceClient.StopJob(ctx, jobID), "Stop Job.")
 	})
 
 	// Attempt to stop the job from a different user.

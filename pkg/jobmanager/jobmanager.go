@@ -10,6 +10,8 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+
+	pb "go.creack.net/telepilot/api/v1"
 )
 
 // Common errors.
@@ -51,6 +53,29 @@ func (jm *JobManager) LookupJob(id uuid.UUID) (*Job, error) {
 		return nil, ErrJobNotFound
 	}
 	return j, nil
+}
+
+func (jm *JobManager) StopJob(id uuid.UUID) error {
+	j, err := jm.LookupJob(id)
+	if err != nil {
+		return err
+	}
+	j.mu.Lock()
+	if j.status != pb.JobStatus_JOB_STATUS_RUNNING {
+		j.mu.Unlock()
+		return nil
+	}
+	if j.cmd.Process != nil {
+		if err := j.cmd.Process.Kill(); err != nil {
+			return fmt.Errorf("process kill: %w", err)
+		}
+	}
+	j.mu.Unlock()
+	<-j.waitChan
+	j.mu.Lock()
+	j.status = pb.JobStatus_JOB_STATUS_STOPPED
+	j.mu.Unlock()
+	return nil
 }
 
 func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, error) {

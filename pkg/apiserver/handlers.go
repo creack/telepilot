@@ -23,17 +23,33 @@ func (s *Server) StartJob(ctx context.Context, req *pb.StartJobRequest) (*pb.Sta
 	//nolint:contextcheck // False positive. We don't want to use the request context to start the job in the background.
 	jobID, err := s.jobmanager.StartJob(user, req.GetCommand(), req.GetArgs())
 	if err != nil {
-		return nil, fmt.Errorf("jobmanager start job: : %w", err)
+		return nil, fmt.Errorf("job manager start job: : %w", err)
 	}
 	return &pb.StartJobResponse{JobId: jobID.String()}, nil
 }
 
-func (s *Server) StopJob(_ context.Context, _ *pb.StopJobRequest) (*pb.StopJobResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method StopJob not implemented")
+func (s *Server) StopJob(_ context.Context, req *pb.StopJobRequest) (*pb.StopJobResponse, error) {
+	jobID, _ := uuid.Parse(req.GetJobId()) // Already validated in middleware.
+
+	if err := s.jobmanager.StopJob(jobID); err != nil {
+		return nil, fmt.Errorf("job manager stop job: %w", err)
+	}
+
+	return &pb.StopJobResponse{}, nil
 }
 
-func (s *Server) GetJobStatus(_ context.Context, _ *pb.GetJobStatusRequest) (*pb.GetJobStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetJobStatus not implemented")
+func (s *Server) GetJobStatus(_ context.Context, req *pb.GetJobStatusRequest) (*pb.GetJobStatusResponse, error) {
+	jobID, _ := uuid.Parse(req.GetJobId()) // Already validated in middleware.
+	job, err := s.jobmanager.LookupJob(jobID)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "lookup job: %s", err)
+	}
+	resp := &pb.GetJobStatusResponse{Status: job.Status()}
+	if resp.GetStatus() != pb.JobStatus_JOB_STATUS_RUNNING {
+		exitCode := int32(job.ExitCode()) //nolint:gosec // False positive.
+		resp.ExitCode = &exitCode
+	}
+	return resp, nil
 }
 
 func (s *Server) StreamLogs(req *pb.StreamLogsRequest, ss grpc.ServerStreamingServer[pb.StreamLogsResponse]) error {
@@ -54,7 +70,6 @@ loop:
 		}
 		return fmt.Errorf("consume logs: %w", err)
 	}
-	// TODO: Investigate this, doesn't smell right, probably need to make a copy of the bufer.
 	if err := ss.Send(&pb.StreamLogsResponse{Data: buf[:n]}); err != nil {
 		return fmt.Errorf("send log entry: %w", err)
 	}

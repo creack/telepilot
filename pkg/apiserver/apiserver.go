@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 
 	"google.golang.org/grpc"
@@ -49,7 +49,7 @@ func (s *Server) ListenAndServe(addr string) error {
 	}
 	// NOTE: s.Serve takes ownership of lis. GracefulStop in s.Close() will invoke lis.Close().
 
-	log.Printf("Server listening at %s.", lis.Addr())
+	slog.With("addr", lis.Addr().String()).Info("Server listening.")
 	return s.Serve(lis)
 }
 

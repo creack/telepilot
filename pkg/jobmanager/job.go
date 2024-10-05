@@ -33,7 +33,8 @@ type Job struct {
 	output *bytes.Buffer
 
 	// Status.
-	status pb.JobStatus
+	status   pb.JobStatus
+	exitCode int
 
 	// Log Broadcaster.
 	broadcaster *broadcaster.Broadcaster
@@ -55,6 +56,20 @@ func newJob(owner, cmd string, args []string) *Job {
 	}
 
 	return j
+}
+
+func (j *Job) Status() pb.JobStatus {
+	j.mu.RLock()
+	s := j.status
+	j.mu.RUnlock()
+	return s
+}
+
+func (j *Job) ExitCode() int {
+	j.mu.RLock()
+	c := j.exitCode
+	j.mu.RUnlock()
+	return c
 }
 
 // historicalSink consumes the given reader (output broadcast)
@@ -80,6 +95,7 @@ func (j *Job) wait(closers ...io.Closer) {
 	defer func() {
 		j.mu.Lock()
 		j.status = pb.JobStatus_JOB_STATUS_EXITED
+		j.exitCode = j.cmd.ProcessState.ExitCode()
 		j.mu.Unlock()
 		close(j.waitChan)
 		_ = closeAll(closers...) // Can't fail.

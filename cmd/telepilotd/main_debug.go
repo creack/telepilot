@@ -4,7 +4,8 @@
 package main
 
 import (
-	"fmt"
+	"log/slog"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"time"
@@ -13,22 +14,25 @@ import (
 // Only compiled in debug mode. Run GC and prints info
 // about the process every few seconds.
 func init() { //nolint:gochecknoinits // Expected init for debug.
+	logger := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})
+	slog.SetDefault(slog.New(logger))
+
 	//nolint // Debug.
 	go func() {
 	loop:
 		runtime.GC()
 		debug.FreeOSMemory()
 
-		fmt.Printf("Number of CPUs: %d\n", runtime.NumCPU())
-		fmt.Printf("Number of goroutines: %d\n", runtime.NumGoroutine())
 		var m runtime.MemStats
 		runtime.ReadMemStats(&m)
 
-		fmt.Printf("Alloc = %v MiB\n", m.Alloc/1024/1024)
-		fmt.Printf("\tTotalAlloc = %v MiB\n", m.TotalAlloc/1024/1024)
-		fmt.Printf("\tSys = %v MiB\n", m.Sys/1024/1024)
-		fmt.Printf("\tNumGC = %v\n", m.NumGC)
-		fmt.Println()
+		slog.
+			With("num_goroutine", runtime.NumGoroutine()).
+			// NOTE: Could cast to float64 to get more details, but not needed.
+			With("mem_alloc_mib", m.Alloc/1024/1024).
+			With("mem_sys_mib", m.Sys/1024/1024).
+			With("mem_total_alloc_mib", m.TotalAlloc/1024/1024).
+			Debug("Stats.")
 		time.Sleep(5e9)
 		goto loop
 	}()
