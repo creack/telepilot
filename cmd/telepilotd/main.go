@@ -4,7 +4,8 @@ package main
 import (
 	"context"
 	"flag"
-	"log" // TODO: Consider using slog.
+	"log/slog"
+	"os"
 	"os/signal"
 	"path"
 	"syscall"
@@ -16,6 +17,8 @@ import (
 func main() {
 	keyDir := flag.String("certs", "./certs",
 		"Certs directory. Expecting <certdir>/ca.pem, <certdir>/server.pem and <certdir>/server-key.pem.")
+	flag.Parse()
+
 	tlsConfig, err := tlsconfig.LoadTLSConfig(
 		path.Join(*keyDir, "server.pem"),
 		path.Join(*keyDir, "server-key.pem"),
@@ -23,7 +26,8 @@ func main() {
 		false,
 	)
 	if err != nil {
-		log.Fatalf("Failed to load tls config from %q: %s.", *keyDir, err)
+		slog.Error("Failed to load tls config.", slog.String("cert_dir", *keyDir), slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	s := apiserver.NewServer(tlsConfig)
@@ -36,12 +40,13 @@ func main() {
 		defer close(doneCh)
 		// TODO: Consider making the addr a flag.
 		if err := s.ListenAndServe("localhost:9090"); err != nil {
-			log.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 	}()
 
 	<-ctx.Done()
-	log.Println("Bye.")
+	slog.Info("Bye.")
 	_ = s.Close() // Best effort.
 	// TODO: Consider adding a timeout.
 	<-doneCh

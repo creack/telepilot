@@ -81,7 +81,7 @@ func TestStartStop(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a Job.
-	jobID, err := aliceClient.StartJob(ctx, "foo", nil)
+	jobID, err := aliceClient.StartJob(ctx, "true", nil)
 	noError(t, err, "Alice start job.")
 
 	// Stop the Job from the same user.

@@ -3,6 +3,7 @@ package apiclient
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 
@@ -73,7 +74,10 @@ func (c *Client) StreamLogs(ctx context.Context, jobID uuid.UUID, w io.Writer) e
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			return fmt.Errorf("recv log entry: %w", err)
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return fmt.Errorf("r1ecv log entry: %w", err)
 		}
 		_, _ = fmt.Fprint(w, string(msg.GetData())) // Best effort.
 	}
