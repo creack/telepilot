@@ -110,16 +110,15 @@ func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, 
 		case <-ctx.Done():
 			return
 		}
-		_, _ = io.Copy(w, rc) // Best effort.
+		if rc != nil {
+			_, _ = io.Copy(w, rc) // Best effort.
+		}
 	}()
 
 	// Cleanup routine.
 	go func() {
-		defer func() {
-			// Close the pipe. Best effort.
-			_ = r.Close()
-			_ = w.Close()
-		}()
+		// Close the pipe. Best effort.
+		defer func() { _, _ = r.Close(), w.Close() }()
 
 		// Wait for the process to end.
 		select {
@@ -127,7 +126,9 @@ func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, 
 		case <-ctx.Done(): // NOTE: Make sure not to return here and close rc.
 		}
 		// Once ended, close the broadcast pipe.
-		_ = rc.Close() // Best effort.
+		if rc != nil { // Will be nil if the process  has already exited.
+			_ = rc.Close() // Best effort.
+		}
 
 		// Wait for the historical output to be fed to pipe.
 		// Important, especially when the process has already exited.
