@@ -1,7 +1,7 @@
 package telepilot_test
 
 import (
-	"context"
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
@@ -9,15 +9,14 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Make sure that we can call start and stop without errors.
 func TestStartStop(t *testing.T) {
 	t.Parallel()
 
-	ts := newTestServer(t)
-
-	ctx := context.Background()
+	ts, ctx := newTestServer(t)
 
 	// Create a Job.
-	jobID, err := ts.alice.StartJob(ctx, "true", nil)
+	jobID, err := ts.alice.StartJob(ctx, os.Args[0], nil)
 	noError(t, err, "Alice start job.")
 
 	// Stop the Job from the same user.
@@ -43,9 +42,7 @@ func TestStartStop(t *testing.T) {
 func TestInvalidStart(t *testing.T) {
 	t.Parallel()
 
-	ts := newTestServer(t)
-
-	ctx := context.Background()
+	ts, ctx := newTestServer(t)
 
 	// Create a Job.
 	jobID, err := ts.alice.StartJob(ctx, "/", nil)

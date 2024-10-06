@@ -1,7 +1,6 @@
 package telepilot_test
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"testing"
@@ -15,9 +14,7 @@ import (
 func TestRunningJobStatus(t *testing.T) {
 	t.Parallel()
 
-	ts := newTestServer(t)
-
-	ctx := context.Background()
+	ts, ctx := newTestServer(t)
 
 	// Create a long running job.
 	jobID, err := ts.alice.StartJob(ctx, "sh", []string{"-c", "while true; do sleep 1; done"})
@@ -42,7 +39,7 @@ func TestRunningJobStatus(t *testing.T) {
 	})
 
 	// Attempt to get the status from a different user.
-	t.Run("sad dave", func(t *testing.T) {
+	t.Run("sad bob", func(t *testing.T) {
 		t.Parallel()
 
 		_, err := ts.bob.GetJobStatus(ctx, jobID)
@@ -55,9 +52,7 @@ func TestRunningJobStatus(t *testing.T) {
 func TestExitedJobStatus(t *testing.T) {
 	t.Parallel()
 
-	ts := newTestServer(t)
-
-	ctx := context.Background()
+	ts, ctx := newTestServer(t)
 
 	const exitCode = 12
 

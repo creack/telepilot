@@ -20,7 +20,7 @@ func (s *Server) StartJob(ctx context.Context, req *pb.StartJobRequest) (*pb.Sta
 		// NOTE: Not supposed to happen as already checked, but check anyway.
 		return nil, fmt.Errorf("getUserFromContext: %w", err)
 	}
-	//nolint:contextcheck // False positive. We don't want to use the request context to start the job in the background.
+	// Contextcheck // False positive. We don't want to use the request context to start the job in the background.
 	jobID, err := s.jobmanager.StartJob(user, req.GetCommand(), req.GetArgs())
 	if err != nil {
 		return nil, fmt.Errorf("job manager start job: : %w", err)
@@ -65,7 +65,7 @@ func (s *Server) StreamLogs(req *pb.StreamLogsRequest, ss grpc.ServerStreamingSe
 loop:
 	n, err := r.Read(buf)
 	if err != nil {
-		if errors.Is(err, io.ErrClosedPipe) {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
 			return nil
 		}
 		return fmt.Errorf("consume logs: %w", err)

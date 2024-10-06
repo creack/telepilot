@@ -2,12 +2,11 @@ package jobmanager
 
 import (
 	"bytes"
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os/exec"
 	"sync"
+	"syscall"
 
 	"github.com/google/uuid"
 
@@ -37,6 +36,7 @@ type Job struct {
 	exitCode int
 
 	// Log Broadcaster.
+	// broadcaster *broadcaster.Broadcaster
 	broadcaster *broadcaster.Broadcaster
 
 	// Wait chan, closed when the process ends.
@@ -53,6 +53,13 @@ func newJob(owner, cmd string, args []string) *Job {
 		broadcaster: broadcaster.NewBroadcaster(),
 
 		waitChan: make(chan struct{}),
+	}
+
+	// Set the process to run in it's own pgid.
+	// NOTE: Will probably update this to run in it's own session once we
+	// get to the cgroups/namespace implementation.
+	j.cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
 	}
 
 	return j
@@ -72,33 +79,18 @@ func (j *Job) ExitCode() int {
 	return c
 }
 
-// historicalSink consumes the given reader (output broadcast)
-// and populates the in-memory buffer.
-func (j *Job) historicalSink(r io.Reader) {
-	buf := make([]byte, 32*1024) //nolint:mnd // Default value from io.Copy, reasonable.
-loop:
-	n, err := r.Read(buf)
-	if err != nil {
-		// Nothing to do, broadcast terminated. Ignore error.
-		_ = err
-		return
-	}
-	j.mu.Lock()
-	_, _ = j.output.Write(buf[:n]) // Can't fail beside OOM.
-	j.mu.Unlock()
-	goto loop
-}
-
 // wait for the underlying process. Broadcast the end via waitChan
 // and close the given resources.
-func (j *Job) wait(closers ...io.Closer) {
+func (j *Job) wait() {
 	defer func() {
 		j.mu.Lock()
-		j.status = pb.JobStatus_JOB_STATUS_EXITED
+		if j.status != pb.JobStatus_JOB_STATUS_STOPPED {
+			j.status = pb.JobStatus_JOB_STATUS_EXITED
+		}
 		j.exitCode = j.cmd.ProcessState.ExitCode()
-		j.mu.Unlock()
 		close(j.waitChan)
-		_ = closeAll(closers...) // Can't fail.
+		_ = j.broadcaster.Close() // Best effort.
+		j.mu.Unlock()
 	}()
 	if err := j.cmd.Wait(); err != nil {
 		// TODO: Consider doing something with the error, store it in the state maybe.
@@ -110,41 +102,28 @@ func (j *Job) wait(closers ...io.Closer) {
 
 // NOTE: Expected to be called before being shared. Not locked.
 func (j *Job) start() error {
-	// NOTE: Using background context as we don't want to be bound to the request's one.
-	ctx := context.Background()
-
-	// Create a pipe for the outputs.
-	r, w := io.Pipe()
-	j.cmd.Stdout = w
+	// Use the broadcaster as output for the process.
+	j.cmd.Stdout = j.broadcaster
 	j.cmd.Stderr = j.cmd.Stdout // NOTE: Merge out/err for simplicity. Should split them for production.
 
-	// Start the broadcaster.
-	go func() { _ = j.broadcaster.Run(ctx, r) }() // Can't fail as we read from a pipe we contorl.
-
 	// Subscribe the in-memory buffer to keep historical logs.
-	rc := j.broadcaster.SubscribePipe(ctx)
-	go j.historicalSink(rc)
+	j.broadcaster.Subscribe(&nopCloser{j.output})
 
 	if err := j.cmd.Start(); err != nil {
 		// NOTE: We don't set a special status for 'failed to start' as this state
 		// will be discarded and garbage collected. Never surfaced to the user.
+		// When we implement listing, it may be interesting to add.
 		close(j.waitChan)
-		_ = closeAll(j.broadcaster, rc, r, w)
+		_ = j.broadcaster.Close() // Best effort.
 		return fmt.Errorf("start process: %w", err)
 	}
 	j.status = pb.JobStatus_JOB_STATUS_RUNNING
-	go j.wait(j.broadcaster, rc, r, w)
+	go j.wait()
 
 	return nil
 }
 
-func closeAll(closers ...io.Closer) error {
-	if len(closers) == 0 {
-		return nil
-	}
-	errs := make([]error, 0, len(closers))
-	for _, c := range closers {
-		errs = append(errs, c.Close())
-	}
-	return errors.Join(errs...)
-}
+// nopCloser wraps io.Writer and adds a no-op Closer method.
+type nopCloser struct{ io.Writer }
+
+func (n *nopCloser) Close() error { return nil }

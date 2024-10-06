@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/google/uuid"
 
@@ -60,21 +61,29 @@ func (jm *JobManager) StopJob(id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	j.mu.Lock()
+	j.mu.Lock() // NOTE: We don't defer unlock as we want to wait after unlock unpon success.
 	if j.status != pb.JobStatus_JOB_STATUS_RUNNING {
 		j.mu.Unlock()
 		return nil
 	}
 	if j.cmd.Process != nil {
-		if err := j.cmd.Process.Kill(); err != nil {
-			return fmt.Errorf("process kill: %w", err)
+		// Send the KILL to the process group, not just the process to avoid orphans.
+		// NOTE: This is POSIX compliant.
+		if err := syscall.Kill(-j.cmd.Process.Pid, syscall.SIGKILL); err != nil {
+			j.mu.Unlock()
+			if errors.Is(err, syscall.ESRCH) {
+				// If the process died as we were about to stop it, nothing to do.
+				// Don't set the status as stopped as it exited on it's own.
+				// This is an unavoidable "race" as we don't control the child process,
+				// it can die after the lock and before the kill. Nothing to worry about though.
+				return nil
+			}
+			return fmt.Errorf("process kill %d: %w", j.cmd.Process.Pid, err)
 		}
 	}
-	j.mu.Unlock()
-	<-j.waitChan
-	j.mu.Lock()
 	j.status = pb.JobStatus_JOB_STATUS_STOPPED
 	j.mu.Unlock()
+	<-j.waitChan
 	return nil
 }
 
@@ -87,56 +96,28 @@ func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, 
 	// Create a pipe for the caller to consume.
 	r, w := io.Pipe()
 
-	// NOTE: The RLock efectivelly "pauses" the broadcast to the
-	// historical output buffer so we'll always have the full
-	// uninterrupted output without duplicates.
-	j.mu.RLock()
-	output := j.output.String()            // Pull a copy of the historical output.
-	rc := j.broadcaster.SubscribePipe(ctx) // Subscribe to the broadcast.
-	j.mu.RUnlock()
+	// Pause the broadcast, make a copy of the current output and subscribe the live logs.
+	//
+	// NOTE: Not ideal as it pauses the broadcast for every clients connected to that stream.
+	// In production, should consider a more advanced setup where we only pause the historical
+	// feed without pausing the stream of other clients.
+	// As it only pauses while making a copy of the output buffer and adding one entry to a map,
+	// it is acceptable for now.
+	j.broadcaster.Pause()
+	output := j.output.String()
+	j.broadcaster.UnsafeSubscribe(w)
+	j.broadcaster.UnPause()
 
-	// Feed the pipe the with historical output.
-	ch := make(chan struct{})
+	// Cleanup routine. When the process dies or when the context is done,
+	// close the pipe and unsubscribe from the broadcaster.
 	go func() {
-		defer close(ch)
-		_, _ = io.Copy(w, strings.NewReader(output)) // Best effort.
-	}()
-
-	// Feed the pipe with the live logs from the broadcast.
-	go func() {
-		// Wait for the historical output to be fully written before starting to feed the live logs.
 		select {
-		case <-ch:
 		case <-ctx.Done():
-			return
-		}
-		if rc != nil {
-			_, _ = io.Copy(w, rc) // Best effort.
-		}
-	}()
-
-	// Cleanup routine.
-	go func() {
-		// Close the pipe. Best effort.
-		defer func() { _, _ = r.Close(), w.Close() }()
-
-		// Wait for the process to end.
-		select {
 		case <-j.waitChan:
-		case <-ctx.Done(): // NOTE: Make sure not to return here and close rc.
 		}
-		// Once ended, close the broadcast pipe.
-		if rc != nil { // Will be nil if the process  has already exited.
-			_ = rc.Close() // Best effort.
-		}
-
-		// Wait for the historical output to be fed to pipe.
-		// Important, especially when the process has already exited.
-		select {
-		case <-ch:
-		case <-ctx.Done():
-		}
+		_, _ = r.Close(), w.Close() // Can't fail.
+		j.broadcaster.Unsubscribe(w)
 	}()
 
-	return r, nil
+	return io.MultiReader(strings.NewReader(output), r), nil
 }
