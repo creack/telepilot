@@ -20,6 +20,7 @@ func getUserFromContext(ctx context.Context) (string, error) {
 
 	if p, ok := peer.FromContext(ctx); ok {
 		if mtls, ok := p.AuthInfo.(credentials.TLSInfo); ok {
+			// NOTE: We control user management and their certificate, we only expect one.
 			if len(mtls.State.PeerCertificates) > 1 {
 				return "", fmt.Errorf("too many peers in cert: %w", ErrInvalidClientCerts)
 			}

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 
-	"github.com/google/uuid"
 	"github.com/urfave/cli/v3"
 
 	"go.creack.net/telepilot/pkg/apiclient"
@@ -17,7 +16,7 @@ import (
 //nolint:funlen // Acceptable for CLI definition.
 func main() {
 	var client *apiclient.Client
-	var jobID uuid.UUID
+	var jobID string
 
 	jobIDArg := &cli.StringArg{
 		Name:      "<job_id>",
@@ -26,11 +25,7 @@ func main() {
 		Max:       1,
 	}
 	parseJobID := func(_ context.Context, cmd *cli.Command) error {
-		id, err := uuid.Parse(cmd.Args().First())
-		if err != nil {
-			return fmt.Errorf("invalid <job_id>, not a uuid: %w", err)
-		}
-		jobID = id
+		jobID = cmd.Args().First()
 		return nil
 	}
 
@@ -69,14 +64,14 @@ func main() {
 				Usage:     "Start a new Job.",
 				UsageText: "telepilot [global options] start <command> [arguments...]",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if cmd.Args().Len() == 0 {
+					if !cmd.Args().Present() {
 						return cli.ShowSubcommandHelp(cmd)
 					}
 					jobID, err := client.StartJob(ctx, cmd.Args().First(), cmd.Args().Tail())
 					if err != nil {
 						return err //nolint:wrapcheck // No wrap needed here.
 					}
-					fmt.Fprintln(cmd.Writer, jobID.String())
+					fmt.Fprintln(cmd.Writer, jobID)
 					return nil
 				},
 			},
@@ -105,7 +100,7 @@ func main() {
 			},
 			{
 				Name:  "logs",
-				Usage: "complete a task on the list",
+				Usage: "Streams logs from a Job until it exits.",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					return client.StreamLogs(ctx, jobID, cmd.Writer)
 				},

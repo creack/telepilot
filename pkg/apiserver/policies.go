@@ -15,7 +15,7 @@ var policies = map[string][]policyFct{
 
 func enforcePolicies(user string, job *jobmanager.Job, policies ...policyFct) bool {
 	if len(policies) == 0 {
-		return false
+		panic("missing policy for endpoint")
 	}
 	for _, p := range policies {
 		if !p(user, job) {

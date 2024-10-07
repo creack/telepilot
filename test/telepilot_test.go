@@ -62,7 +62,7 @@ func TestStartStop(t *testing.T) {
 	// Listen on a random port.
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	noError(t, err, "Listen")
-	t.Cleanup(func() { _ = lis.Close() }) // No strictly needed, but just to make sure.
+	t.Cleanup(func() { _ = lis.Close() }) // No strictly needed, but just to make sure. Called by the server Close().
 
 	// Start the server.
 	doneCh := make(chan struct{})
