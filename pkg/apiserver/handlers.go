@@ -4,10 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	pb "go.creack.net/telepilot/api/v1"
 )
 

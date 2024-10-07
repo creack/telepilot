@@ -104,5 +104,5 @@ func (s *Server) StreamMiddleware(
 		return fmt.Errorf("getUserFromContext: %w", err)
 	}
 	// Authorization, on each message.
-	return handler(srv, &serverStreamWrapper{ServerStream: ss, s: s, user: user, fullMethod: info.FullMethod})
+	return handler(server, &serverStreamWrapper{ServerStream: ss, s: s, user: user, fullMethod: info.FullMethod})
 }
