@@ -16,24 +16,22 @@ import (
 
 // Common method to extract the user's CN from context.
 func getUserFromContext(ctx context.Context) (string, error) {
-	var user string
-
-	if p, ok := peer.FromContext(ctx); ok {
-		if mtls, ok := p.AuthInfo.(credentials.TLSInfo); ok {
-			// NOTE: We control user management and their certificate, we only expect one.
-			if len(mtls.State.PeerCertificates) > 1 {
-				return "", fmt.Errorf("too many peers in cert: %w", ErrInvalidClientCerts)
-			}
-			for _, item := range mtls.State.PeerCertificates {
-				user = item.Subject.CommonName
-				break
-			}
-		}
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return "", fmt.Errorf("peer not found in context: %w", ErrInvalidClientCerts)
 	}
-	if user == "" {
-		return "", fmt.Errorf("CN not found: %w", ErrInvalidClientCerts)
+	mtls, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return "", fmt.Errorf("authinfo invalid type: %w", ErrInvalidClientCerts)
 	}
-	return user, nil
+	// NOTE: We control user management and their certificate, we only expect one.
+	if len(mtls.State.PeerCertificates) > 1 {
+		return "", fmt.Errorf("too many peers in cert: %w", ErrInvalidClientCerts)
+	}
+	for _, item := range mtls.State.PeerCertificates {
+		return item.Subject.CommonName, nil
+	}
+	return "", fmt.Errorf("CN not found: %w", ErrInvalidClientCerts)
 }
 
 // middleware to enforce authorization policies.
