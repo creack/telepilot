@@ -5,11 +5,16 @@ import (
 	"context"
 	"flag"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"path"
 	"syscall"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
+	pb "go.creack.net/telepilot/api/v1"
 	"go.creack.net/telepilot/pkg/apiserver"
 	"go.creack.net/telepilot/pkg/tlsconfig"
 )
@@ -30,28 +35,45 @@ func main() {
 		os.Exit(1)
 	}
 
-	s, err := apiserver.NewServer(tlsConfig)
+	s, err := apiserver.NewServer()
 	if err != nil {
 		slog.Error("Failed to create api server.", slog.Any("error", err))
 		os.Exit(1)
 	}
+
+	grpcServer := grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.UnaryInterceptor(s.UnaryMiddleware),
+		grpc.StreamInterceptor(s.StreamMiddleware),
+	)
+	pb.RegisterTelePilotServiceServer(grpcServer, s)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	doneCh := make(chan struct{})
 	go func() {
-		defer close(doneCh)
 		// TODO: Consider making the addr a flag.
-		if err := s.ListenAndServe("localhost:9090"); err != nil {
-			slog.Error(err.Error())
+		lis, err := net.Listen("tcp", "localhost:9090")
+		if err != nil {
+			slog.Error("Listen error", slog.Any("error", err))
 			os.Exit(1)
 		}
+		// NOTE: s.Serve takes ownership of lis. GracefulStop in s.Close() will invoke lis.Close().
+
+		slog.With("addr", lis.Addr().String()).Info("Server listening.")
+
+		if err := grpcServer.Serve(lis); err != nil {
+			slog.Error("Serve error", slog.Any("error", err))
+			os.Exit(1)
+		}
+
+		close(doneCh)
 	}()
 
 	<-ctx.Done()
 	slog.Info("Bye.")
-	_ = s.Close() // Best effort.
+	grpcServer.GracefulStop()
 	// TODO: Consider adding a timeout.
 	<-doneCh
 }

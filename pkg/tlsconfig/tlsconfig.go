@@ -36,11 +36,7 @@ func LoadTLSConfig(certFile, keyFile, caFile string, isClient bool) (*tls.Config
 			tls.CurveP384,
 			tls.CurveP256,
 		},
-		CipherSuites: []uint16{
-			tls.TLS_CHACHA20_POLY1305_SHA256,
-			tls.TLS_AES_256_GCM_SHA384,
-			tls.TLS_AES_128_GCM_SHA256,
-		},
+		// NOTE: CipherSuites are ignored in TLS1.3.
 		Certificates: []tls.Certificate{certificate},
 	}
 

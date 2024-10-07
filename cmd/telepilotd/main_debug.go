@@ -19,21 +19,21 @@ func init() { //nolint:gochecknoinits // Expected init for debug.
 
 	//nolint // Debug.
 	go func() {
-	loop:
-		runtime.GC()
-		debug.FreeOSMemory()
+		for {
+			runtime.GC()
+			debug.FreeOSMemory()
 
-		var m runtime.MemStats
-		runtime.ReadMemStats(&m)
+			var m runtime.MemStats
+			runtime.ReadMemStats(&m)
 
-		slog.
-			With("num_goroutine", runtime.NumGoroutine()).
-			// NOTE: Could cast to float64 to get more details, but not needed.
-			With("mem_alloc_mib", m.Alloc/1024/1024).
-			With("mem_sys_mib", m.Sys/1024/1024).
-			With("mem_total_alloc_mib", m.TotalAlloc/1024/1024).
-			Debug("Stats.")
-		time.Sleep(5e9)
-		goto loop
+			slog.
+				With("num_goroutine", runtime.NumGoroutine()).
+				// NOTE: Could cast to float64 to get more details, but not needed.
+				With("mem_alloc_mib", m.Alloc/1024/1024).
+				With("mem_sys_mib", m.Sys/1024/1024).
+				With("mem_total_alloc_mib", m.TotalAlloc/1024/1024).
+				Debug("Stats.")
+			time.Sleep(5e9)
+		}
 	}()
 }

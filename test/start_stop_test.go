@@ -36,6 +36,11 @@ func TestStartStop(t *testing.T) {
 		st, ok := status.FromError(ts.bob.StopJob(ctx, jobID))
 		assert(t, true, ok, "extract grpc status from error")
 		assert(t, codes.PermissionDenied, st.Code(), "invalid grpc status code")
+
+		// Attempt to stop a non-existing job.
+		st, ok = status.FromError(ts.bob.StopJob(ctx, uuid.New().String()))
+		assert(t, true, ok, "extract grpc status from error")
+		assert(t, codes.PermissionDenied, st.Code(), "invalid grpc status code")
 	})
 }
 
@@ -49,5 +54,5 @@ func TestInvalidStart(t *testing.T) {
 	if err == nil {
 		t.Fatal("Starting invalid job should fail but didn't.")
 	}
-	assert(t, uuid.Nil, jobID, "invalid job id")
+	assert(t, "", jobID, "invalid job id")
 }

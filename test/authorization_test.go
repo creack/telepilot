@@ -5,7 +5,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -72,7 +71,7 @@ func TestAuthorization(t *testing.T) {
 }
 
 // Sad path test from the given client to the given job id.
-func sadAuthorization(t *testing.T, client *apiclient.Client, jobID uuid.UUID) {
+func sadAuthorization(t *testing.T, client *apiclient.Client, jobID string) {
 	t.Helper()
 
 	ctx := context.Background()

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -20,7 +19,7 @@ type Client struct {
 	client pb.TelePilotServiceClient
 }
 
-// NewClient connects to the server.
+// NewClient returns a client prepared to connect to the server.
 func NewClient(tlsConfig *tls.Config, addr string) (*Client, error) {
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	if err != nil {
@@ -31,31 +30,24 @@ func NewClient(tlsConfig *tls.Config, addr string) (*Client, error) {
 
 // Close the connection if connected.
 func (c *Client) Close() error {
-	if c.conn != nil {
-		return c.conn.Close() //nolint:wrapcheck // No wrap needed here.
-	}
-	return nil
+	return c.conn.Close() //nolint:wrapcheck // No wrap needed here.
 }
 
-func (c *Client) StartJob(ctx context.Context, cmd string, args []string) (uuid.UUID, error) {
+func (c *Client) StartJob(ctx context.Context, cmd string, args []string) (string, error) {
 	resp, err := c.client.StartJob(ctx, &pb.StartJobRequest{Command: cmd, Args: args})
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("call start job: %w", err)
+		return "", fmt.Errorf("call start job: %w", err)
 	}
-	jobID, err := uuid.Parse(resp.GetJobId())
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid job id from server %q: %w", resp.GetJobId(), err)
-	}
-	return jobID, nil
+	return resp.GetJobId(), nil
 }
 
-func (c *Client) StopJob(ctx context.Context, jobID uuid.UUID) error {
-	_, err := c.client.StopJob(ctx, &pb.StopJobRequest{JobId: jobID.String()})
+func (c *Client) StopJob(ctx context.Context, jobID string) error {
+	_, err := c.client.StopJob(ctx, &pb.StopJobRequest{JobId: jobID})
 	return err //nolint:wrapcheck // Only error path, no need for wrap here.
 }
 
-func (c *Client) GetJobStatus(ctx context.Context, jobID uuid.UUID) (string, error) {
-	resp, err := c.client.GetJobStatus(ctx, &pb.GetJobStatusRequest{JobId: jobID.String()})
+func (c *Client) GetJobStatus(ctx context.Context, jobID string) (string, error) {
+	resp, err := c.client.GetJobStatus(ctx, &pb.GetJobStatusRequest{JobId: jobID})
 	if err != nil {
 		return "", err //nolint:wrapcheck // Only error path, no need for wrap here.
 	}
@@ -66,8 +58,8 @@ func (c *Client) GetJobStatus(ctx context.Context, jobID uuid.UUID) (string, err
 	return status.String(), nil
 }
 
-func (c *Client) StreamLogs(ctx context.Context, jobID uuid.UUID, w io.Writer) error {
-	stream, err := c.client.StreamLogs(ctx, &pb.StreamLogsRequest{JobId: jobID.String()})
+func (c *Client) StreamLogs(ctx context.Context, jobID string, w io.Writer) error {
+	stream, err := c.client.StreamLogs(ctx, &pb.StreamLogsRequest{JobId: jobID})
 	if err != nil {
 		return fmt.Errorf("call streamlogs: %w", err)
 	}
