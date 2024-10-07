@@ -8,6 +8,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -97,7 +98,14 @@ func TestStartStop(t *testing.T) {
 	// Attempt to stop the job from a different user.
 	t.Run("sad bob", func(t *testing.T) {
 		t.Parallel()
+
 		st, ok := status.FromError(bobClient.StopJob(ctx, jobID))
+		assert(t, true, ok, "extract grpc status from error")
+
+		assert(t, codes.PermissionDenied, st.Code(), "invalid grpc status code")
+
+		// Attempt to stop a non-exiting job.
+		st, ok = status.FromError(bobClient.StopJob(ctx, uuid.New().String()))
 		assert(t, true, ok, "extract grpc status from error")
 
 		assert(t, codes.PermissionDenied, st.Code(), "invalid grpc status code")
