@@ -130,6 +130,8 @@ The project will come with 3 preset users, by any new user can be added by using
 
 #### 3. CLI
 
+We'll use the popular [github.com/urfave/cli](github.com/urfave/cli) library because of it's simplicity, flexibility and minimum dependencies.
+
 The CLI will provide commands for:
 
 Server:
