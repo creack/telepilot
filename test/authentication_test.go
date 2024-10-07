@@ -2,12 +2,17 @@ package telepilot_test
 
 import (
 	"context"
+	"crypto/x509"
+	"errors"
 	"net"
 	"testing"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 
+	pb "go.creack.net/telepilot/api/v1"
 	"go.creack.net/telepilot/pkg/apiclient"
 	"go.creack.net/telepilot/pkg/apiserver"
 )
@@ -17,14 +22,20 @@ func TestUnauthenticatedUser(t *testing.T) {
 
 	// Load certs for the server and a couple of clients.
 	serverTLSConfig := loadTLSConfig(t, "server")
+	// TODO: Use certs from an unknown CA, to make the test is more realistic.
 	aliceTLSConfig := loadTLSConfig(t, "client-alice")
 	bobTLSConfig := loadTLSConfig(t, "client-bob")
 
-	// Strip the CA from the server config.
-	serverTLSConfig.ClientCAs = nil
+	// Make the VerifyPeerCertificate always fail.
+	serverTLSConfig.VerifyPeerCertificate = func([][]byte, [][]*x509.Certificate) error {
+		return errors.New("fail") //nolint:err113 // No need for custom error here.
+	}
 
 	// Create a server.
-	srv := apiserver.NewServer(serverTLSConfig)
+	s := apiserver.NewServer()
+	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(serverTLSConfig)),
+		grpc.UnaryInterceptor(s.UnaryMiddleware), grpc.StreamInterceptor(s.StreamMiddleware))
+	pb.RegisterTelePilotServiceServer(grpcServer, s)
 
 	// Listen on a random port.
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -33,8 +44,8 @@ func TestUnauthenticatedUser(t *testing.T) {
 
 	// Start the server.
 	doneCh := make(chan struct{})
-	go func() { defer close(doneCh); noError(t, srv.Serve(lis), "Serve") }()
-	t.Cleanup(func() { noError(t, srv.Close(), "Closing server."); <-doneCh }) // Wait for the server to be fully closed.
+	go func() { defer close(doneCh); noError(t, grpcServer.Serve(lis), "Serve") }()
+	t.Cleanup(func() { grpcServer.GracefulStop(); <-doneCh }) // Wait for the server to be fully closed.
 
 	// Create clients.
 	aliceClient, err := apiclient.NewClient(aliceTLSConfig, lis.Addr().String())

@@ -16,23 +16,22 @@ import (
 
 // Common method to extract the user's CN from context.
 func getUserFromContext(ctx context.Context) (string, error) {
-	var user string
-
-	if p, ok := peer.FromContext(ctx); ok {
-		if mtls, ok := p.AuthInfo.(credentials.TLSInfo); ok {
-			if len(mtls.State.PeerCertificates) > 1 {
-				return "", fmt.Errorf("too many peers in cert: %w", ErrInvalidClientCerts)
-			}
-			for _, item := range mtls.State.PeerCertificates {
-				user = item.Subject.CommonName
-				break
-			}
-		}
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return "", fmt.Errorf("peer not found in context: %w", ErrInvalidClientCerts)
 	}
-	if user == "" {
-		return "", fmt.Errorf("CN not found: %w", ErrInvalidClientCerts)
+	mtls, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return "", fmt.Errorf("authinfo invalid type: %w", ErrInvalidClientCerts)
 	}
-	return user, nil
+	// NOTE: We control user management and their certificate, we only expect one.
+	if len(mtls.State.PeerCertificates) > 1 {
+		return "", fmt.Errorf("too many peers in cert: %w", ErrInvalidClientCerts)
+	}
+	for _, item := range mtls.State.PeerCertificates {
+		return item.Subject.CommonName, nil
+	}
+	return "", fmt.Errorf("CN not found: %w", ErrInvalidClientCerts)
 }
 
 // middleware to enforce authorization policies.
@@ -45,10 +44,14 @@ func (s *Server) authMiddleware(user, fullMethod string, req any) error {
 		}
 		job, err := s.jobmanager.LookupJob(jobID)
 		if err != nil {
-			return fmt.Errorf("lookup job %q: %w", getter.GetJobId(), err)
+			// NOTE: The only possible error at the moment is 'not found'. Return PermissionDenied
+			// to avoid 'leaking' job info to unauthorized users.
+			return status.Error(codes.PermissionDenied, "forbidden") //nolint:wrapcheck // Expected direct return.
 		}
 		j = job
+		// TODO: Consider injecting the job in the context for the handlers to use without re-query.
 	}
+	// NOTE: Default behavior if fullMethod is not found is to deny access.
 	if !enforcePolicies(user, j, policies[fullMethod]...) {
 		return status.Error(codes.PermissionDenied, "forbidden") //nolint:wrapcheck // Expected direct return.
 	}
@@ -92,7 +95,7 @@ func (w *serverStreamWrapper) RecvMsg(m any) error {
 
 // StreamMiddleware handles the authn/authz from mtls for streaming endpoints.
 func (s *Server) StreamMiddleware(
-	srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler,
+	server any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler,
 ) error {
 	ctx := ss.Context()
 	// Authentication, only once.
@@ -101,5 +104,5 @@ func (s *Server) StreamMiddleware(
 		return fmt.Errorf("getUserFromContext: %w", err)
 	}
 	// Authorization, on each message.
-	return handler(srv, &serverStreamWrapper{ServerStream: ss, s: s, user: user, fullMethod: info.FullMethod})
+	return handler(server, &serverStreamWrapper{ServerStream: ss, s: s, user: user, fullMethod: info.FullMethod})
 }

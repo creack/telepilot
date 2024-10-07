@@ -15,6 +15,7 @@ var policies = map[string][]policyFct{
 
 func enforcePolicies(user string, job *jobmanager.Job, policies ...policyFct) bool {
 	if len(policies) == 0 {
+		// If no policies are set for the method, deny access.
 		return false
 	}
 	for _, p := range policies {
