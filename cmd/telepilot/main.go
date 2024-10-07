@@ -34,6 +34,7 @@ func main() {
 		Before: func(_ context.Context, cmd *cli.Command) error {
 			certDir := cmd.String("certs")
 			user := cmd.String("user")
+			// TODO: Consider using one cert dir per user to simplify the flags.
 			tlsConfig, err := tlsconfig.LoadTLSConfig(
 				path.Join(certDir, "client-"+user+".pem"),
 				path.Join(certDir, "client-"+user+"-key.pem"),

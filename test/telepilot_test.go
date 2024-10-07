@@ -11,9 +11,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 
+	pb "go.creack.net/telepilot/api/v1"
 	"go.creack.net/telepilot/pkg/apiclient"
 	"go.creack.net/telepilot/pkg/apiserver"
 	"go.creack.net/telepilot/pkg/tlsconfig"
@@ -51,6 +54,7 @@ func loadTLSConfig(t *testing.T, name string) *tls.Config {
 	return cfg
 }
 
+//nolint:funlen // Acceptable for now. Cleaned up in future PR.
 func TestStartStop(t *testing.T) {
 	t.Parallel()
 
@@ -60,7 +64,13 @@ func TestStartStop(t *testing.T) {
 	bobTLSConfig := loadTLSConfig(t, "client-bob")
 
 	// Create a server.
-	srv := apiserver.NewServer(serverTLSConfig)
+	s := apiserver.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(serverTLSConfig)),
+		grpc.UnaryInterceptor(s.UnaryMiddleware),
+		grpc.StreamInterceptor(s.StreamMiddleware),
+	)
+	pb.RegisterTelePilotServiceServer(grpcServer, s)
 
 	// Listen on a random port.
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -69,8 +79,8 @@ func TestStartStop(t *testing.T) {
 
 	// Start the server.
 	doneCh := make(chan struct{})
-	go func() { defer close(doneCh); noError(t, srv.Serve(lis), "Serve") }()
-	t.Cleanup(func() { noError(t, srv.Close(), "Closing server."); <-doneCh }) // Wait for the server to be fully closed.
+	go func() { defer close(doneCh); noError(t, grpcServer.Serve(lis), "Serve") }()
+	t.Cleanup(func() { grpcServer.GracefulStop(); <-doneCh }) // Wait for the server to be fully closed.
 
 	// Create clients.
 	aliceClient, err := apiclient.NewClient(aliceTLSConfig, lis.Addr().String())
@@ -114,6 +124,7 @@ func TestStartStop(t *testing.T) {
 	})
 }
 
+//nolint:funlen // Acceptable for now. Cleaned up in future PR.
 func TestUnauthenticatedUser(t *testing.T) {
 	t.Parallel()
 
@@ -128,17 +139,23 @@ func TestUnauthenticatedUser(t *testing.T) {
 	}
 
 	// Create a server.
-	srv := apiserver.NewServer(serverTLSConfig)
+	s := apiserver.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(serverTLSConfig)),
+		grpc.UnaryInterceptor(s.UnaryMiddleware),
+		grpc.StreamInterceptor(s.StreamMiddleware),
+	)
+	pb.RegisterTelePilotServiceServer(grpcServer, s)
 
 	// Listen on a random port.
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	noError(t, err, "Listen")
-	t.Cleanup(func() { _ = lis.Close() }) // No strictly needed, but just to make sure.
+	t.Cleanup(func() { _ = lis.Close() }) // No strictly needed, but just to make sure. Called by the server Close().
 
 	// Start the server.
 	doneCh := make(chan struct{})
-	go func() { defer close(doneCh); noError(t, srv.Serve(lis), "Serve") }()
-	t.Cleanup(func() { noError(t, srv.Close(), "Closing server."); <-doneCh }) // Wait for the server to be fully closed.
+	go func() { defer close(doneCh); noError(t, grpcServer.Serve(lis), "Serve") }()
+	t.Cleanup(func() { grpcServer.GracefulStop(); <-doneCh }) // Wait for the server to be fully closed.
 
 	// Create clients.
 	aliceClient, err := apiclient.NewClient(aliceTLSConfig, lis.Addr().String())

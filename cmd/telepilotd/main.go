@@ -5,10 +5,15 @@ import (
 	"context"
 	"flag"
 	"log" // TODO: Consider using slog.
+	"net"
 	"os/signal"
 	"path"
 	"syscall"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
+	pb "go.creack.net/telepilot/api/v1"
 	"go.creack.net/telepilot/pkg/apiserver"
 	"go.creack.net/telepilot/pkg/tlsconfig"
 )
@@ -26,7 +31,14 @@ func main() {
 		log.Fatalf("Failed to load tls config from %q: %s.", *keyDir, err)
 	}
 
-	s := apiserver.NewServer(tlsConfig)
+	s := apiserver.NewServer()
+
+	grpcServer := grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.UnaryInterceptor(s.UnaryMiddleware),
+		grpc.StreamInterceptor(s.StreamMiddleware),
+	)
+	pb.RegisterTelePilotServiceServer(grpcServer, s)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -34,15 +46,20 @@ func main() {
 	doneCh := make(chan struct{})
 	go func() {
 		defer close(doneCh)
+
 		// TODO: Consider making the addr a flag.
-		if err := s.ListenAndServe("localhost:9090"); err != nil {
-			log.Fatal(err)
+		lis, err := net.Listen("tcp", "localhost:9090")
+		if err != nil {
+			log.Fatalf("Listen error: %s.", err)
+		}
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("Serve error: %s", err)
 		}
 	}()
 
 	<-ctx.Done()
 	log.Println("Bye.")
-	_ = s.Close() // Best effort.
+	grpcServer.GracefulStop()
 	// TODO: Consider adding a timeout.
 	<-doneCh
 }
