@@ -23,15 +23,3 @@ func (s *Server) StartJob(ctx context.Context, req *pb.StartJobRequest) (*pb.Sta
 	}
 	return &pb.StartJobResponse{JobId: jobID.String()}, nil
 }
-
-func (s *Server) StopJob(_ context.Context, _ *pb.StopJobRequest) (*pb.StopJobResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method StopJob not implemented")
-}
-
-func (s *Server) GetJobStatus(_ context.Context, _ *pb.GetJobStatusRequest) (*pb.GetJobStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetJobStatus not implemented")
-}
-
-func (s *Server) StreamLogs(_ *pb.StreamLogsRequest, _ grpc.ServerStreamingServer[pb.StreamLogsResponse]) error {
-	return status.Errorf(codes.Unimplemented, "method StreamLogs not implemented")
-}
