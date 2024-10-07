@@ -12,6 +12,7 @@ import (
 
 	pb "go.creack.net/telepilot/api/v1"
 	"go.creack.net/telepilot/pkg/broadcaster"
+	"go.creack.net/telepilot/pkg/cgroups"
 )
 
 // Job represent an individual job.
@@ -59,7 +60,8 @@ func newJob(owner, cmd string, args []string) *Job {
 	// NOTE: Will probably update this to run in it's own session once we
 	// get to the cgroups/namespace implementation.
 	j.cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
+		Setpgid:     true,
+		UseCgroupFD: true,
 	}
 
 	return j
@@ -102,6 +104,14 @@ func (j *Job) wait() {
 
 // NOTE: Expected to be called before being shared. Not locked.
 func (j *Job) start() error {
+	// Setup the cgroup limits.
+	cgroupDir, err := cgroups.New("job-" + j.ID.String())
+	if err != nil {
+		return fmt.Errorf("setup cgroups for job: %w", err)
+	}
+	defer func() { _ = cgroupDir.Close() }() // Best effort.
+	j.cmd.SysProcAttr.CgroupFD = int(cgroupDir.Fd())
+
 	// Use the broadcaster as output for the process.
 	j.cmd.Stdout = j.broadcaster
 	j.cmd.Stderr = j.cmd.Stdout // NOTE: Merge out/err for simplicity. Should split them for production.

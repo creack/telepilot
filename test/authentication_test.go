@@ -24,7 +24,8 @@ func TestUnauthenticatedUser(t *testing.T) {
 	serverTLSConfig.ClientCAs = nil
 
 	// Create a server.
-	srv := apiserver.NewServer(serverTLSConfig)
+	srv, err := apiserver.NewServer(serverTLSConfig)
+	noError(t, err, "New API Server.")
 
 	// Listen on a random port.
 	lis, err := net.Listen("tcp", "127.0.0.1:0")

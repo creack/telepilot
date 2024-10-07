@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	pb "go.creack.net/telepilot/api/v1"
+	"go.creack.net/telepilot/pkg/cgroups"
 	"go.creack.net/telepilot/pkg/jobmanager"
 )
 
@@ -28,7 +29,11 @@ type Server struct {
 	jobmanager *jobmanager.JobManager
 }
 
-func NewServer(tlsConfig *tls.Config) *Server {
+func NewServer(tlsConfig *tls.Config) (*Server, error) {
+	if err := cgroups.InitialSetup(); err != nil {
+		return nil, fmt.Errorf("cgroups initial setup: %w", err)
+	}
+
 	s := &Server{
 		jobmanager: jobmanager.NewJobManager(),
 	}
@@ -39,7 +44,7 @@ func NewServer(tlsConfig *tls.Config) *Server {
 	)
 	pb.RegisterTelePilotServiceServer(grpcServer, s)
 	s.grpcServer = grpcServer
-	return s
+	return s, nil
 }
 
 func (s *Server) ListenAndServe(addr string) error {

@@ -30,7 +30,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := apiserver.NewServer(tlsConfig)
+	s, err := apiserver.NewServer(tlsConfig)
+	if err != nil {
+		slog.Error("Failed to create api server.", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

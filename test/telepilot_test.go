@@ -87,7 +87,8 @@ func newTestServer(t *testing.T) (*testServer, context.Context) {
 	bobTLSConfig := loadTLSConfig(t, "client-bob")
 
 	// Create a server.
-	srv := apiserver.NewServer(serverTLSConfig)
+	srv, err := apiserver.NewServer(serverTLSConfig)
+	noError(t, err, "New API Server.")
 
 	// Listen on a random port.
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
