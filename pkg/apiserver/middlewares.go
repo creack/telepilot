@@ -46,7 +46,7 @@ func (s *Server) authMiddleware(user, fullMethod string, req any) error {
 		}
 		job, err := s.jobmanager.LookupJob(jobID)
 		if err != nil {
-			// NOTE: The only possibel error at the moment is 'not found'. Return PermissionDenied
+			// NOTE: The only possible error at the moment is 'not found'. Return PermissionDenied
 			// to avoid 'leaking' job info to unauthorized users.
 			return status.Error(codes.PermissionDenied, "forbidden") //nolint:wrapcheck // Expected direct return.
 		}
