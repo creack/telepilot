@@ -46,7 +46,8 @@ func (s *Server) GetJobStatus(_ context.Context, req *pb.GetJobStatusRequest) (*
 	}
 	resp := &pb.GetJobStatusResponse{Status: job.Status()}
 	if resp.GetStatus() != pb.JobStatus_JOB_STATUS_RUNNING {
-		exitCode := int32(job.ExitCode()) //nolint:gosec // False positive.
+		//nolint:gosec // False positive about int/int32 conversion, but in POSIX, exit codes are actually uint8.
+		exitCode := int32(job.ExitCode())
 		resp.ExitCode = &exitCode
 	}
 	return resp, nil
