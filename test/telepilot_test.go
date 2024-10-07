@@ -106,7 +106,7 @@ func TestStartStop(t *testing.T) {
 
 		assert(t, codes.PermissionDenied, st.Code(), "invalid grpc status code")
 
-		// Attempt to stop a non-exiting job.
+		// Attempt to stop a non-existing job.
 		st, ok = status.FromError(bobClient.StopJob(ctx, uuid.New().String()))
 		assert(t, true, ok, "extract grpc status from error")
 
