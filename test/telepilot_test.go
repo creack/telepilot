@@ -3,6 +3,8 @@ package telepilot_test
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"net"
 	"os"
 	"path"
@@ -120,8 +122,10 @@ func TestUnauthenticatedUser(t *testing.T) {
 	aliceTLSConfig := loadTLSConfig(t, "client-alice")
 	bobTLSConfig := loadTLSConfig(t, "client-bob")
 
-	// Strip the CA from the server config.
-	serverTLSConfig.ClientCAs = nil
+	// Make the VerifyPeerCertificate always fail.
+	serverTLSConfig.VerifyPeerCertificate = func([][]byte, [][]*x509.Certificate) error {
+		return errors.New("fail") //nolint:err113 // No need for custom error here.
+	}
 
 	// Create a server.
 	srv := apiserver.NewServer(serverTLSConfig)
