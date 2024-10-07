@@ -95,7 +95,7 @@ func (w *serverStreamWrapper) RecvMsg(m any) error {
 
 // StreamMiddleware handles the authn/authz from mtls for streaming endpoints.
 func (s *Server) StreamMiddleware(
-	srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler,
+	server any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler,
 ) error {
 	ctx := ss.Context()
 	// Authentication, only once.
