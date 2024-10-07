@@ -63,16 +63,16 @@ func (s *Server) StreamLogs(req *pb.StreamLogsRequest, ss grpc.ServerStreamingSe
 	}
 
 	buf := make([]byte, 32*1024) //nolint:mnd // Default value from io.Copy, reasonable.
-loop:
-	n, err := r.Read(buf)
-	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
-			return nil
+	for {
+		n, err := r.Read(buf)
+		if err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
+				return nil
+			}
+			return fmt.Errorf("consume logs: %w", err)
 		}
-		return fmt.Errorf("consume logs: %w", err)
+		if err := ss.Send(&pb.StreamLogsResponse{Data: buf[:n]}); err != nil {
+			return fmt.Errorf("send log entry: %w", err)
+		}
 	}
-	if err := ss.Send(&pb.StreamLogsResponse{Data: buf[:n]}); err != nil {
-		return fmt.Errorf("send log entry: %w", err)
-	}
-	goto loop
 }
