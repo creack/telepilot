@@ -130,6 +130,7 @@ func TestUnauthenticatedUser(t *testing.T) {
 
 	// Load certs for the server and a couple of clients.
 	serverTLSConfig := loadTLSConfig(t, "server")
+	// TODO: Use certs from an unknown CA, to make the test is more realistic.
 	aliceTLSConfig := loadTLSConfig(t, "client-alice")
 	bobTLSConfig := loadTLSConfig(t, "client-bob")
 
