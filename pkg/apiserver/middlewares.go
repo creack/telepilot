@@ -49,7 +49,9 @@ func (s *Server) authMiddleware(user, fullMethod string, req any) error {
 			return status.Error(codes.PermissionDenied, "forbidden") //nolint:wrapcheck // Expected direct return.
 		}
 		j = job
+		// TODO: Consider injecting the job in the context for the handlers to use without re-query.
 	}
+	// NOTE: Default behavior if fullMethod is not found is to deny access.
 	if !enforcePolicies(user, j, policies[fullMethod]...) {
 		return status.Error(codes.PermissionDenied, "forbidden") //nolint:wrapcheck // Expected direct return.
 	}

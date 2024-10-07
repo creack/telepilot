@@ -46,7 +46,7 @@ func main() {
 			// TODO: Consider making the addr a flag.
 			c, err := apiclient.NewClient(tlsConfig, "localhost:9090")
 			if err != nil {
-				return fmt.Errorf("connect: %w", err)
+				return fmt.Errorf("new api client: %w", err)
 			}
 			client = c
 			return nil
