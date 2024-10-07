@@ -118,7 +118,7 @@ func main() {
 			&cli.StringFlag{
 				Name:  "user",
 				Value: "alice",
-				Usage: "Clietn user name. Cert and key expected in <certdir>.",
+				Usage: "Client user name. Cert and key expected in <certdir>.",
 			},
 		},
 	}
