@@ -38,8 +38,10 @@ linters-settings:
           - google.golang.org/grpc
           - google.golang.org/grpc/credentials
           - google.golang.org/grpc/peer
+          - google.golang.org/grpc/status
           # Utils.
           - github.com/google/uuid
+          - github.com/urfave/cli/v3
 
 issues:
   exclude-files:
