@@ -2,6 +2,7 @@ package jobmanager
 
 import (
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"strings"
 	"sync"
@@ -84,7 +85,7 @@ func (j *Job) wait() {
 	if err := j.cmd.Wait(); err != nil {
 		slog.Warn("something happened", slog.Any("error", err))
 	}
-	
+
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if j.status != pb.JobStatus_JOB_STATUS_STOPPED {

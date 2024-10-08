@@ -22,7 +22,7 @@ func NewBroadcaster() *Broadcaster {
 }
 
 // Surface the lock as Pause/Unpause to freeze the broadcast while we make a copy of historical data.
-func (b *Broadcaster) Pause()   { b.mu.Lock() }
+func (b *Broadcaster) Pause()  { b.mu.Lock() }
 func (b *Broadcaster) Resume() { b.mu.Unlock() }
 
 // If broadcaster is closed, do nothing.

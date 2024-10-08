@@ -106,7 +106,7 @@ func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, 
 	j.broadcaster.Pause()
 	output := j.output.String()
 	j.broadcaster.UnsafeSubscribe(w)
-	j.broadcaster.UnPause()
+	j.broadcaster.Resume()
 
 	// Cleanup routine. When the process dies or when the context is done,
 	// close the pipe and unsubscribe from the broadcaster.

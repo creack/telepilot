@@ -29,7 +29,10 @@ func (s *Server) StartJob(ctx context.Context, req *pb.StartJobRequest) (*pb.Sta
 }
 
 func (s *Server) StopJob(_ context.Context, req *pb.StopJobRequest) (*pb.StopJobResponse, error) {
-	jobID, _ := uuid.Parse(req.GetJobId()) // Already validated in middleware.
+	jobID, err := uuid.Parse(req.GetJobId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid job id: %s", err)
+	}
 
 	if err := s.jobmanager.StopJob(jobID); err != nil {
 		return nil, fmt.Errorf("job manager stop job: %w", err)
@@ -39,7 +42,11 @@ func (s *Server) StopJob(_ context.Context, req *pb.StopJobRequest) (*pb.StopJob
 }
 
 func (s *Server) GetJobStatus(_ context.Context, req *pb.GetJobStatusRequest) (*pb.GetJobStatusResponse, error) {
-	jobID, _ := uuid.Parse(req.GetJobId()) // Already validated in middleware.
+	jobID, err := uuid.Parse(req.GetJobId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid job id: %s", err)
+	}
+
 	job, err := s.jobmanager.LookupJob(jobID)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "lookup job: %s", err)
@@ -55,7 +62,10 @@ func (s *Server) GetJobStatus(_ context.Context, req *pb.GetJobStatusRequest) (*
 
 func (s *Server) StreamLogs(req *pb.StreamLogsRequest, ss grpc.ServerStreamingServer[pb.StreamLogsResponse]) error {
 	ctx := ss.Context()
-	jobID, _ := uuid.Parse(req.GetJobId()) // Already validated in middleware.
+	jobID, err := uuid.Parse(req.GetJobId())
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid job id: %s", err)
+	}
 
 	r, err := s.jobmanager.StreamLogs(ctx, jobID)
 	if err != nil {
