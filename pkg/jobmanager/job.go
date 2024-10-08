@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
+	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -25,6 +27,9 @@ type Job struct {
 
 	// Underlying command.
 	cmd *exec.Cmd
+
+	// Cgroup path used. Used to cleanup when done.
+	cgroupPath string
 
 	// In the context of the assignment, we store all the output in memory
 	// and merge stdout/stderr.
@@ -81,19 +86,37 @@ func (j *Job) ExitCode() int {
 	return c
 }
 
+func (j *Job) Close() error {
+	j.mu.Lock()
+	if j.status != pb.JobStatus_JOB_STATUS_STOPPED {
+		j.status = pb.JobStatus_JOB_STATUS_EXITED
+	}
+	if j.cmd.ProcessState != nil {
+		j.exitCode = j.cmd.ProcessState.ExitCode()
+	}
+	close(j.waitChan)
+	_ = j.broadcaster.Close() // Best effort.
+	j.mu.Unlock()
+
+	// NOTE: cgroupPath is immutable and set at start before being shared, can
+	// safely be used without lock.
+	if err := os.RemoveAll(j.cgroupPath); err != nil {
+		slog.Error("Error removing cgroup on job close.",
+			slog.String("job_id", j.ID.String()),
+			slog.String("cgroup_path", j.cgroupPath),
+			slog.Any("error", err),
+		)
+		return fmt.Errorf("remove cgroup: %w", err)
+	}
+
+	return nil
+}
+
 // wait for the underlying process. Broadcast the end via waitChan
 // and close the given resources.
 func (j *Job) wait() {
-	defer func() {
-		j.mu.Lock()
-		if j.status != pb.JobStatus_JOB_STATUS_STOPPED {
-			j.status = pb.JobStatus_JOB_STATUS_EXITED
-		}
-		j.exitCode = j.cmd.ProcessState.ExitCode()
-		close(j.waitChan)
-		_ = j.broadcaster.Close() // Best effort.
-		j.mu.Unlock()
-	}()
+	defer func() { _ = j.Close() }() // Best effort.
+
 	if err := j.cmd.Wait(); err != nil {
 		// TODO: Consider doing something with the error, store it in the state maybe.
 		// Nothing to do with it for now, discarding it.
@@ -111,6 +134,7 @@ func (j *Job) start() error {
 	}
 	defer func() { _ = cgroupDir.Close() }() // Best effort.
 	j.cmd.SysProcAttr.CgroupFD = int(cgroupDir.Fd())
+	j.cgroupPath = cgroupDir.Name()
 
 	// Use the broadcaster as output for the process.
 	j.cmd.Stdout = j.broadcaster
@@ -123,8 +147,7 @@ func (j *Job) start() error {
 		// NOTE: We don't set a special status for 'failed to start' as this state
 		// will be discarded and garbage collected. Never surfaced to the user.
 		// When we implement listing, it may be interesting to add.
-		close(j.waitChan)
-		_ = j.broadcaster.Close() // Best effort.
+		_ = j.Close() // Best effort.
 		return fmt.Errorf("start process: %w", err)
 	}
 	j.status = pb.JobStatus_JOB_STATUS_RUNNING
