@@ -96,17 +96,10 @@ func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, 
 	// Create a pipe for the caller to consume.
 	r, w := io.Pipe()
 
-	// Pause the broadcast, make a copy of the current output and subscribe the live logs.
-	//
-	// NOTE: Not ideal as it pauses the broadcast for every clients connected to that stream.
-	// In production, should consider a more advanced setup where we only pause the historical
-	// feed without pausing the stream of other clients.
-	// As it only pauses while making a copy of the output buffer and adding one entry to a map,
-	// it is acceptable for now.
-	j.broadcaster.Pause()
+	j.output.Lock()
 	output := j.output.String()
-	j.broadcaster.UnsafeSubscribe(w)
-	j.broadcaster.Resume()
+	j.broadcaster.Subscribe(w)
+	j.output.Unlock()
 
 	// Cleanup routine. When the process dies or when the context is done,
 	// close the pipe and unsubscribe from the broadcaster.
