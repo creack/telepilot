@@ -50,7 +50,7 @@ func (b *Broadcaster) Unsubscribe(w io.WriteCloser) {
 }
 
 // NOTE: This approach is not ideal, if any client is slow or blocking,
-// it will slow/block everyone.
+// it will slow/block everyone, including the command itself.
 // In a future version, should consider a more advanced setup where
 // each client has it's own goroutine/queue.
 func (b *Broadcaster) Write(p []byte) (int, error) {
