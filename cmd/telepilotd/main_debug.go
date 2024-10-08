@@ -17,10 +17,10 @@ func init() { //nolint:gochecknoinits // Expected init for debug.
 	logger := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})
 	slog.SetDefault(slog.New(logger))
 	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
 
 	//nolint // Debug.
 	go func() {
+		defer ticker.Stop()
 		for {
 			debug.FreeOSMemory()
 
