@@ -8,6 +8,14 @@ import (
 
 // Broadcaster is a simplified Broker allowing clients to subscribe while
 // itself behaving as a io.Writer.
+// The Broadcaster is itself a io.Writer, any write to it will be sent to
+// all the client that called .Subscribe() (or .UnsafeSubscribe()).
+//
+// Caveats:
+//   - The order of writes is not guaranteed.
+//   - Each write sequencially calls .Write() on the clients, if any client blocks
+//     or slows down, it impacts every client as well as the initial caller using Write()
+//     on the broadcaster.
 type Broadcaster struct {
 	mu sync.Mutex
 	// NOTE: As we use a map, the broadcast order is randomized.
@@ -21,7 +29,14 @@ func NewBroadcaster() *Broadcaster {
 	}
 }
 
-// Surface the lock as Pause/Unpause to freeze the broadcast while we make a copy of historical data.
+// Surface the lock as Pause/Unpause to freeze the broadcast.
+// This is useful if one of the broadcaster client requires to be read
+// from a different goroutine. Typically, when one of the client is an
+// in-memory buffer than needs to be accessed on demand.
+// Calling Pause() paues all the clients as well as the use of the broadcast
+// calling Write().
+// Calling Resume() resumes execution. Calling Pause() without Resume() can lead
+// to goroutine leak and/or deadlocks.
 func (b *Broadcaster) Pause()  { b.mu.Lock() }
 func (b *Broadcaster) Resume() { b.mu.Unlock() }
 
