@@ -33,7 +33,7 @@ func init() { //nolint:gochecknoinits // Expected init for debug.
 				With("mem_sys_mib", m.Sys/1024/1024).
 				With("mem_total_alloc_mib", m.TotalAlloc/1024/1024).
 				Debug("Stats.")
-			time.Sleep(5e9)
+			time.Sleep(5 * time.Second)
 		}
 	}()
 }
