@@ -25,7 +25,7 @@ func NewBroadcaster() *Broadcaster {
 func (b *Broadcaster) Pause()   { b.mu.Lock() }
 func (b *Broadcaster) Resume() { b.mu.Unlock() }
 
-// If broadcaster is closed, no nothing.
+// If broadcaster is closed, do nothing.
 func (b *Broadcaster) Subscribe(w io.WriteCloser) {
 	b.mu.Lock()
 	b.UnsafeSubscribe(w)
