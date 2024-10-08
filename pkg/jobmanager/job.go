@@ -61,11 +61,18 @@ func newJob(owner, cmd string, args []string) *Job {
 		waitChan: make(chan struct{}),
 	}
 
-	// Set the process to run in it's own pgid.
-	// NOTE: Will probably update this to run in it's own session once we
-	// get to the cgroups/namespace implementation.
 	j.cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid:     true,
+		// Set the process to run in it's own pgid.
+		// NOTE: Will probably update this to run in it's own session once we
+		// get to the cgroups/namespace implementation.
+		Setpgid: true,
+
+		// Create the job in namespaces for isolation.
+		Cloneflags: syscall.CLONE_NEWPID | // PID namespace.
+			syscall.CLONE_NEWNS | // Mount namespace.
+			syscall.CLONE_NEWNET, // Network namespace.
+
+		// Make use of clone3 cgroup arg.
 		UseCgroupFD: true,
 	}
 

@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"flag"
+	"log"
 	"log/slog"
 	"net"
 	"os"
@@ -22,7 +23,12 @@ import (
 func main() {
 	keyDir := flag.String("certs", "./certs",
 		"Certs directory. Expecting <certdir>/ca.pem, <certdir>/server.pem and <certdir>/server-key.pem.")
+	init := flag.Bool("init", false, "internal flag to toggle init mode")
 	flag.Parse()
+	if *init {
+		log.Printf("%q - %v\n", flag.Args()[0], flag.Args()[1:])
+		return
+	}
 
 	tlsConfig, err := tlsconfig.LoadTLSConfig(
 		path.Join(*keyDir, "server.pem"),
