@@ -81,22 +81,18 @@ func (j *Job) ExitCode() int {
 // wait for the underlying process. Broadcast the end via waitChan
 // and close the given resources.
 func (j *Job) wait() {
-	defer func() {
-		j.mu.Lock()
-		if j.status != pb.JobStatus_JOB_STATUS_STOPPED {
-			j.status = pb.JobStatus_JOB_STATUS_EXITED
-		}
-		j.exitCode = j.cmd.ProcessState.ExitCode()
-		close(j.waitChan)
-		_ = j.broadcaster.Close() // Best effort.
-		j.mu.Unlock()
-	}()
 	if err := j.cmd.Wait(); err != nil {
-		// TODO: Consider doing something with the error, store it in the state maybe.
-		// Nothing to do with it for now, discarding it.
-		_ = err
-		return
+		slog.Warn("something happened", slog.Any("error", err))
 	}
+	
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.status != pb.JobStatus_JOB_STATUS_STOPPED {
+		j.status = pb.JobStatus_JOB_STATUS_EXITED
+	}
+	j.exitCode = j.cmd.ProcessState.ExitCode()
+	close(j.waitChan)
+	_ = j.broadcaster.Close() // Best effort.
 }
 
 // NOTE: Expected to be called before being shared. Not locked.
