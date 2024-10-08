@@ -1,10 +1,9 @@
 package jobmanager
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -29,7 +28,7 @@ type Job struct {
 	// and merge stdout/stderr.
 	// Not suitable for production as the output can easily cause an OOM crash.
 	// Should also split stdout/stderr to allow for more control.
-	output *bytes.Buffer
+	output *strings.Builder
 
 	// Status.
 	status   pb.JobStatus
@@ -49,7 +48,7 @@ func newJob(owner, cmd string, args []string) *Job {
 		Owner: owner,
 		cmd:   exec.Command(cmd, args...),
 
-		output:      bytes.NewBuffer(nil),
+		output:      &strings.Builder{},
 		broadcaster: broadcaster.NewBroadcaster(),
 
 		waitChan: make(chan struct{}),
@@ -124,6 +123,6 @@ func (j *Job) start() error {
 }
 
 // nopCloser wraps io.Writer and adds a no-op Closer method.
-type nopCloser struct{ io.Writer }
+type nopCloser struct{ *strings.Builder }
 
 func (n *nopCloser) Close() error { return nil }
