@@ -83,7 +83,7 @@ func (j *Job) ExitCode() int {
 // and close the given resources.
 func (j *Job) wait() {
 	if err := j.cmd.Wait(); err != nil {
-		slog.Debug("Job ended.", slog.Any("error", err))
+		slog.Debug("Process Wait ended with error", "error", err)
 	}
 
 	j.mu.Lock()
@@ -93,14 +93,17 @@ func (j *Job) wait() {
 	}
 	j.exitCode = j.cmd.ProcessState.ExitCode()
 	close(j.waitChan)
-	_ = j.broadcaster.Close() // Best effort.
+	if err := j.broadcaster.Close(); err != nil {
+		// Best effort.
+		slog.Error("Broadcaster closed with error.", "error", err)
+	}
 }
 
 // NOTE: Expected to be called before being shared. Not locked.
 func (j *Job) start() error {
 	// Use the broadcaster as output for the process.
-	j.cmd.Stdout = j.broadcaster // io.MultiWriter(os.Stderr, j.broadcaster)
-	j.cmd.Stderr = j.cmd.Stdout  // NOTE: Merge out/err for simplicity. Should split them for production.
+	j.cmd.Stdout = j.broadcaster
+	j.cmd.Stderr = j.broadcaster // NOTE: Merge out/err for simplicity. Should split them for production.
 
 	// Subscribe the in-memory buffer to keep historical logs.
 	j.broadcaster.Subscribe(j.output)
@@ -110,7 +113,10 @@ func (j *Job) start() error {
 		// will be discarded and garbage collected. Never surfaced to the user.
 		// When we implement listing, it may be interesting to add.
 		close(j.waitChan)
-		_ = j.broadcaster.Close() // Best effort.
+		if e1 := j.broadcaster.Close(); e1 != nil {
+			// Best effort.
+			slog.Error("Broadcaster closed with error.", "error", e1)
+		}
 		return fmt.Errorf("start process: %w", err)
 	}
 	j.status = pb.JobStatus_JOB_STATUS_RUNNING

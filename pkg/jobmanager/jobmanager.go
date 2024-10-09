@@ -38,7 +38,7 @@ func (jm *JobManager) StartJob(owner, cmd string, args []string) (uuid.UUID, err
 		return uuid.Nil, fmt.Errorf("job start: %w", err)
 	}
 
-	// Job sarted successfully, store it.
+	// Job started successfully, store it.
 	jm.mu.Lock()
 	jm.jobs[j.ID] = j
 	jm.mu.Unlock()
@@ -61,28 +61,31 @@ func (jm *JobManager) StopJob(id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	j.mu.Lock() // NOTE: We don't defer unlock as we want to wait after unlock unpon success.
-	if j.status != pb.JobStatus_JOB_STATUS_RUNNING {
-		j.mu.Unlock()
-		return nil
-	}
-	if j.cmd.Process != nil {
-		// Send the KILL to the process group, not just the process to avoid orphans.
-		// NOTE: This is POSIX compliant.
-		if err := syscall.Kill(-j.cmd.Process.Pid, syscall.SIGKILL); err != nil {
-			j.mu.Unlock()
-			if errors.Is(err, syscall.ESRCH) {
-				// If the process died as we were about to stop it, nothing to do.
-				// Don't set the status as stopped as it exited on it's own.
-				// This is an unavoidable "race" as we don't control the child process,
-				// it can die after the lock and before the kill. Nothing to worry about though.
-				return nil
-			}
-			return fmt.Errorf("process kill %d: %w", j.cmd.Process.Pid, err)
+	if err := func() error {
+		j.mu.Lock()
+		defer j.mu.Unlock()
+		if j.status != pb.JobStatus_JOB_STATUS_RUNNING {
+			return nil
 		}
+		if j.cmd.Process != nil {
+			// Send the KILL to the process group, not just the process to avoid orphans.
+			// TODO: Change to cmd.Process.Kill using pidfd mode once the cgroup are applied. Done in PR #9.
+			if err := syscall.Kill(-j.cmd.Process.Pid, syscall.SIGKILL); err != nil {
+				if errors.Is(err, syscall.ESRCH) {
+					// If the process died as we were about to stop it, nothing to do.
+					// Don't set the status as stopped as it exited on it's own.
+					// This is an unavoidable "race" as we don't control the child process,
+					// it can die after the lock and before the kill. Nothing to worry about though.
+					return nil
+				}
+				return fmt.Errorf("process kill %d: %w", j.cmd.Process.Pid, err)
+			}
+		}
+		j.status = pb.JobStatus_JOB_STATUS_STOPPED
+		return nil
+	}(); err != nil {
+		return err
 	}
-	j.status = pb.JobStatus_JOB_STATUS_STOPPED
-	j.mu.Unlock()
 	<-j.waitChan
 	return nil
 }
@@ -91,6 +94,12 @@ func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, 
 	j, err := jm.LookupJob(id)
 	if err != nil {
 		return nil, err
+	}
+
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.status != pb.JobStatus_JOB_STATUS_RUNNING {
+		return strings.NewReader(j.output.String()), nil
 	}
 
 	// Create a pipe for the caller to consume.

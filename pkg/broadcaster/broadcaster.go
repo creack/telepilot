@@ -16,6 +16,7 @@ type Broadcaster struct {
 	mu sync.Mutex
 	// NOTE: As we use a map, the broadcast order is randomized.
 	// Consider using a slice instead to be deterministic.
+	// When the broadcaster is closed, is set to nil.
 	clients map[io.WriteCloser]chan string
 }
 

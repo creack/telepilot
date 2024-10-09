@@ -81,6 +81,7 @@ func (s *Server) StreamLogs(req *pb.StreamLogsRequest, ss grpc.ServerStreamingSe
 			}
 		}
 		if err != nil {
+			// If the process dies while setting up StreamLogs, we can get a ErrClosedPipe.
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
 				return nil
 			}
