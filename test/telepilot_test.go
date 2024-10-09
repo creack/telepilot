@@ -154,7 +154,7 @@ func consumeFromPipe(ctx context.Context, t *testing.T, sizes ...int) (<-chan []
 		select {
 		case <-done:
 		case <-ctx.Done():
-			t.Fatal("Timeout wiating for read loop to end.")
+			t.Fatal("Timeout waiting for read loop to end.")
 		}
 	})
 
