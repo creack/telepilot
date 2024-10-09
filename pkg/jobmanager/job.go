@@ -100,7 +100,7 @@ func (j *Job) wait() {
 func (j *Job) start() error {
 	// Use the broadcaster as output for the process.
 	j.cmd.Stdout = j.broadcaster
-	j.cmd.Stderr = j.cmd.Stdout // NOTE: Merge out/err for simplicity. Should split them for production.
+	j.cmd.Stderr = j.broadcaster // NOTE: Merge out/err for simplicity. Should split them for production.
 
 	// Subscribe the in-memory buffer to keep historical logs.
 	j.broadcaster.Subscribe(&nopCloser{j.output})
