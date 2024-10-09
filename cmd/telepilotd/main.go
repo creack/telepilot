@@ -31,7 +31,7 @@ func main() {
 		false,
 	)
 	if err != nil {
-		slog.Error("Failed to load tls config.", slog.String("cert_dir", *keyDir), slog.Any("error", err))
+		slog.Error("Failed to load tls config.", "cert_dir", *keyDir, "error", err)
 		os.Exit(1)
 	}
 
