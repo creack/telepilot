@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"log/slog"
 	"net"
 	"os"
@@ -25,30 +24,40 @@ func main() {
 		"Certs directory. Expecting <certdir>/ca.pem, <certdir>/server.pem and <certdir>/server-key.pem.")
 	init := flag.Bool("init", false, "internal flag to toggle init mode")
 	flag.Parse()
+
 	if *init {
-		log.Printf("%q - %v\n", flag.Args()[0], flag.Args()[1:])
+		if err := Init(flag.Args()); err != nil {
+			slog.Error("Init error.", "error", err, "args", flag.Args())
+			os.Exit(1)
+		}
 		return
 	}
 
+	server(*keyDir)
+}
+
+func server(keyDir string) {
 	tlsConfig, err := tlsconfig.LoadTLSConfig(
-		path.Join(*keyDir, "server.pem"),
-		path.Join(*keyDir, "server-key.pem"),
-		path.Join(*keyDir, "ca.pem"),
+		path.Join(keyDir, "server.pem"),
+		path.Join(keyDir, "server-key.pem"),
+		path.Join(keyDir, "ca.pem"),
 		false,
 	)
 	if err != nil {
-		slog.Error("Failed to load tls config.", slog.String("cert_dir", *keyDir), slog.Any("error", err))
+		slog.Error("Failed to load tls config.", "cert_dir", keyDir, "error", err)
 		os.Exit(1)
 	}
 
 	s, err := apiserver.NewServer()
 	if err != nil {
-		slog.Error("Failed to create api server.", slog.Any("error", err))
+		slog.Error("Failed to create api server.", "error", err)
 		os.Exit(1)
 	}
 
-	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)),
-		grpc.UnaryInterceptor(s.UnaryMiddleware), grpc.StreamInterceptor(s.StreamMiddleware),
+	grpcServer := grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.UnaryInterceptor(s.UnaryMiddleware),
+		grpc.StreamInterceptor(s.StreamMiddleware),
 	)
 	pb.RegisterTelePilotServiceServer(grpcServer, s)
 
@@ -60,7 +69,7 @@ func main() {
 		// TODO: Consider making the addr a flag.
 		lis, err := net.Listen("tcp", "localhost:9090")
 		if err != nil {
-			slog.Error("Listen error", slog.Any("error", err))
+			slog.Error("Listen error", "error", err)
 			os.Exit(1)
 		}
 		// NOTE: s.Serve takes ownership of lis. GracefulStop in s.Close() will invoke lis.Close().
@@ -68,7 +77,7 @@ func main() {
 		slog.With("addr", lis.Addr().String()).Info("Server listening.")
 
 		if err := grpcServer.Serve(lis); err != nil {
-			slog.Error("Serve error", slog.Any("error", err))
+			slog.Error("Serve error", "error", err)
 			os.Exit(1)
 		}
 
