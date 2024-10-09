@@ -47,10 +47,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	grpcServer := grpc.NewServer(
-		grpc.Creds(credentials.NewTLS(tlsConfig)),
-		grpc.UnaryInterceptor(s.UnaryMiddleware),
-		grpc.StreamInterceptor(s.StreamMiddleware),
+	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.UnaryInterceptor(s.UnaryMiddleware), grpc.StreamInterceptor(s.StreamMiddleware),
 	)
 	pb.RegisterTelePilotServiceServer(grpcServer, s)
 
