@@ -29,7 +29,7 @@ func NewBroadcaster() *Broadcaster {
 	}
 }
 
-// Surface the lock as Pause/Unpause to freeze the broadcast.
+// Surface the lock as Pause/Resume to freeze the broadcast.
 // This is useful if one of the broadcaster client requires to be read
 // from a different goroutine. Typically, when one of the client is an
 // in-memory buffer than needs to be accessed on demand.
