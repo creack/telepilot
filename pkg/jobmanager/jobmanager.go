@@ -96,6 +96,12 @@ func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, 
 		return nil, err
 	}
 
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.status != pb.JobStatus_JOB_STATUS_RUNNING {
+		return strings.NewReader(j.output.String()), nil
+	}
+
 	// Create a pipe for the caller to consume.
 	r, w := io.Pipe()
 
