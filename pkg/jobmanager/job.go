@@ -74,6 +74,8 @@ func newJob(owner, cmd string, args []string) *Job {
 
 		// Make use of clone3 cgroup arg.
 		UseCgroupFD: true,
+
+		PidFD: new(int),
 	}
 
 	return j

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/google/uuid"
 
@@ -69,9 +69,9 @@ func (jm *JobManager) StopJob(id uuid.UUID) error {
 	if j.cmd.Process != nil {
 		// Send the KILL to the process group, not just the process to avoid orphans.
 		// NOTE: This is POSIX compliant.
-		if err := syscall.Kill(-j.cmd.Process.Pid, syscall.SIGKILL); err != nil {
+		if err := j.cmd.Process.Kill(); err != nil {
 			j.mu.Unlock()
-			if errors.Is(err, syscall.ESRCH) {
+			if errors.Is(err, os.ErrProcessDone) {
 				// If the process died as we were about to stop it, nothing to do.
 				// Don't set the status as stopped as it exited on it's own.
 				// This is an unavoidable "race" as we don't control the child process,
