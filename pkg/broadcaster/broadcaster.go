@@ -33,7 +33,7 @@ func NewBroadcaster() *Broadcaster {
 // This is useful if one of the broadcaster client requires to be read
 // from a different goroutine. Typically, when one of the client is an
 // in-memory buffer than needs to be accessed on demand.
-// Calling Pause() paues all the clients as well as the use of the broadcast
+// Calling Pause() pauses all the clients as well as the use of the broadcast
 // calling Write().
 // Calling Resume() resumes execution. Calling Pause() without Resume() can lead
 // to goroutine leak and/or deadlocks.
