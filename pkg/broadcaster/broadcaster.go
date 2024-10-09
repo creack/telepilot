@@ -1,7 +1,6 @@
 package broadcaster
 
 import (
-	"errors"
 	"io"
 	"sync"
 )
@@ -13,56 +12,49 @@ import (
 //
 // Caveats:
 //   - The order of writes is not guaranteed.
-//   - Each write sequencially calls .Write() on the clients, if any client blocks
-//     or slows down, it impacts every client as well as the initial caller using Write()
-//     on the broadcaster.
 type Broadcaster struct {
 	mu sync.Mutex
 	// NOTE: As we use a map, the broadcast order is randomized.
 	// Consider using a slice instead to be deterministic.
-	// When closed, is set to nil.
-	clients map[io.WriteCloser]struct{}
+	// When the broadcaster is closed, is set to nil.
+	clients map[io.WriteCloser]chan string
 }
 
 func NewBroadcaster() *Broadcaster {
 	return &Broadcaster{
-		clients: map[io.WriteCloser]struct{}{},
+		clients: map[io.WriteCloser]chan string{},
 	}
 }
-
-// Surface the lock as Pause/Resume to freeze the broadcast.
-// This is useful if one of the broadcaster client requires to be read
-// from a different goroutine. Typically, when one of the client is an
-// in-memory buffer than needs to be accessed on demand.
-// Calling Pause() pauses all the clients as well as the use of the broadcast
-// calling Write().
-// Calling Resume() resumes execution. Calling Pause() without Resume() can lead
-// to goroutine leak and/or deadlocks.
-func (b *Broadcaster) Pause()  { b.mu.Lock() }
-func (b *Broadcaster) Resume() { b.mu.Unlock() }
 
 // If broadcaster is closed, do nothing.
 func (b *Broadcaster) Subscribe(w io.WriteCloser) {
 	b.mu.Lock()
-	b.UnsafeSubscribe(w)
-	b.mu.Unlock()
-}
-
-// Needs to be gated by Pause/Unpause.
-func (b *Broadcaster) UnsafeSubscribe(w io.WriteCloser) {
-	if b.clients == nil {
+	defer b.mu.Unlock()
+	if b.clients == nil { // If closed, do nothing.
 		return
 	}
-	b.clients[w] = struct{}{}
+	ch := make(chan string, 128) //nolint:mnd // Arbitrary size.
+	b.clients[w] = ch
+	go func() {
+		for msg := range ch {
+			if n, err := w.Write([]byte(msg)); err != nil || n != len(msg) {
+				return
+			}
+		}
+	}()
 }
 
 func (b *Broadcaster) Unsubscribe(w io.WriteCloser) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.clients == nil {
+	if b.clients == nil { // If closed, do nothing.
 		return
 	}
-	delete(b.clients, w)
+	if ch, ok := b.clients[w]; ok {
+		close(ch)
+		delete(b.clients, w)
+	}
+	_ = w.Close()
 }
 
 // NOTE: This approach is not ideal, if any client is slow or blocking,
@@ -71,10 +63,13 @@ func (b *Broadcaster) Unsubscribe(w io.WriteCloser) {
 // each client has it's own goroutine/queue.
 func (b *Broadcaster) Write(p []byte) (int, error) {
 	b.mu.Lock()
-	for c := range b.clients {
-		if n, err := c.Write(p); err != nil || n != len(p) {
-			// Any errors kicks the client out.
-			delete(b.clients, c)
+	for w, ch := range b.clients {
+		select {
+		case ch <- string(p):
+		default:
+			close(ch)
+			_ = w.Close() // Best effort.
+			delete(b.clients, w)
 		}
 	}
 	b.mu.Unlock()
@@ -83,11 +78,11 @@ func (b *Broadcaster) Write(p []byte) (int, error) {
 
 func (b *Broadcaster) Close() error {
 	b.mu.Lock()
-	errs := make([]error, 0, len(b.clients))
-	for c := range b.clients {
-		errs = append(errs, c.Close())
+	for w, ch := range b.clients {
+		close(ch)
+		_ = w.Close() // Best effort.
 	}
 	b.clients = nil
 	b.mu.Unlock()
-	return errors.Join(errs...)
+	return nil
 }
