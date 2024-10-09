@@ -38,7 +38,7 @@ func (jm *JobManager) StartJob(owner, cmd string, args []string) (uuid.UUID, err
 		return uuid.Nil, fmt.Errorf("job start: %w", err)
 	}
 
-	// Job sarted successfully, store it.
+	// Job started successfully, store it.
 	jm.mu.Lock()
 	jm.jobs[j.ID] = j
 	jm.mu.Unlock()
