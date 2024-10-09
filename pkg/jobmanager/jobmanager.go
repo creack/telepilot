@@ -68,7 +68,7 @@ func (jm *JobManager) StopJob(id uuid.UUID) error {
 	}
 	if j.cmd.Process != nil {
 		// Send the KILL to the process group, not just the process to avoid orphans.
-		// NOTE: This is POSIX compliant.
+		// TODO: Change to cmd.Process.Kill using pidfd mode once the cgroup are applied. Done in PR #9.
 		if err := syscall.Kill(-j.cmd.Process.Pid, syscall.SIGKILL); err != nil {
 			j.mu.Unlock()
 			if errors.Is(err, syscall.ESRCH) {
