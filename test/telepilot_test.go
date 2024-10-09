@@ -38,7 +38,7 @@ func assert[T comparable](t *testing.T, expect, got T, msg string) {
 	}
 }
 
-func assertChan(ctx context.Context, t *testing.T, expect string, ch <-chan []byte, msg string) {
+func assertChanOnce(ctx context.Context, t *testing.T, expect string, ch <-chan []byte, msg string) {
 	t.Helper()
 
 	select {
