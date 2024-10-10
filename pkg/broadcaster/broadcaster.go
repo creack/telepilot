@@ -34,13 +34,16 @@ func (c *client) Close() error {
 	}
 }
 
-// Broadcaster is a simplified Broker allowing clients to subscribe while
+// BufferedBroadcaster is a simplified Broker allowing clients to subscribe while
 // itself behaving as a io.Writer.
-// The Broadcaster is itself a io.Writer, any write to it will be sent to
+// The BufferedBroadcaster is itself a io.Writer, any write to it will be sent to
 // all the client that called .Subscribe().
 // In addition, it buffers everything written to it. .Output() can be used
 // to access a copy of it.
 // .SubscribeOutput() can be used to subscribe and get a copy at once.
+//
+// The BufferedBroadcaster must be instantiated using NewBufferedBroadcaster() otherwise
+// it would be closed and unusable.
 //
 // Caveats:
 //   - The order of writes is not guaranteed.
@@ -48,7 +51,8 @@ func (c *client) Close() error {
 //     or until a hard-set 500ms timeout is reached.
 //   - Close doesn't free the buffer. Relying on the GC for that.
 //   - No Cap on the in-memory buffer. Can easily cause OOM.
-type Broadcaster struct {
+//   - Slow clients will get evicted if their queue grows too much.
+type BufferedBroadcaster struct {
 	mu sync.Mutex
 	// NOTE: As we use a map, the broadcast order is randomized.
 	// Consider using a slice instead to be deterministic.
@@ -58,33 +62,33 @@ type Broadcaster struct {
 	buffer *strings.Builder
 }
 
-func NewBufferedBroadcaster() *Broadcaster {
-	return &Broadcaster{
+func NewBufferedBroadcaster() *BufferedBroadcaster {
+	return &BufferedBroadcaster{
 		clients: map[io.WriteCloser]*client{},
 		buffer:  &strings.Builder{},
 	}
 }
 
-func (b *Broadcaster) Buffer() string {
+func (b *BufferedBroadcaster) Buffer() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buffer.String()
 }
 
-func (b *Broadcaster) SubsribeOutput(w io.WriteCloser) string {
+func (b *BufferedBroadcaster) SubsribeOutput(w io.WriteCloser) string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.subscribe(w)
 	return b.buffer.String()
 }
 
-func (b *Broadcaster) Subscribe(w io.WriteCloser) {
+func (b *BufferedBroadcaster) Subscribe(w io.WriteCloser) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.subscribe(w)
 }
 
-func (b *Broadcaster) subscribe(w io.WriteCloser) {
+func (b *BufferedBroadcaster) subscribe(w io.WriteCloser) {
 	if b.clients == nil { // If closed, do nothing.
 		return
 	}
@@ -104,7 +108,7 @@ func (b *Broadcaster) subscribe(w io.WriteCloser) {
 	}()
 }
 
-func (b *Broadcaster) Unsubscribe(w io.WriteCloser) {
+func (b *BufferedBroadcaster) Unsubscribe(w io.WriteCloser) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.clients == nil { // If closed, do nothing.
@@ -123,7 +127,7 @@ func (b *Broadcaster) Unsubscribe(w io.WriteCloser) {
 // it will slow/block everyone, including the command itself.
 // In a future version, should consider a more advanced setup where
 // each client has it's own goroutine/queue.
-func (b *Broadcaster) Write(p []byte) (int, error) {
+func (b *BufferedBroadcaster) Write(p []byte) (int, error) {
 	b.mu.Lock()
 
 	// Synch write to the in-memory buffer.
@@ -142,7 +146,7 @@ func (b *Broadcaster) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (b *Broadcaster) Close() error {
+func (b *BufferedBroadcaster) Close() error {
 	b.mu.Lock()
 	errs := make([]error, 0, len(b.clients))
 	for _, c := range b.clients {

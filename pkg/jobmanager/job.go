@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -25,19 +24,16 @@ type Job struct {
 	// Underlying command.
 	cmd *exec.Cmd
 
-	// In the context of the assignment, we store all the output in memory
-	// and merge stdout/stderr.
-	// Not suitable for production as the output can easily cause an OOM crash.
-	// Should also split stdout/stderr to allow for more control.
-	output *lockWriteCloser
-
 	// Status.
 	status   pb.JobStatus
 	exitCode int
 
 	// Log Broadcaster.
-	// broadcaster *broadcaster.Broadcaster
-	broadcaster *broadcaster.Broadcaster
+	// In the context of the assignment, we store all the output in memory
+	// and merge stdout/stderr.
+	// Not suitable for production as the output can easily cause an OOM crash.
+	// Should also split stdout/stderr to allow for more control.
+	broadcaster *broadcaster.BufferedBroadcaster
 
 	// Wait chan, closed when the process ends.
 	waitChan chan struct{}
@@ -49,7 +45,6 @@ func newJob(owner, cmd string, args []string) *Job {
 		Owner: owner,
 		cmd:   exec.Command(cmd, args...),
 
-		output:      &lockWriteCloser{Builder: &strings.Builder{}},
 		broadcaster: broadcaster.NewBufferedBroadcaster(),
 
 		waitChan: make(chan struct{}),
@@ -121,17 +116,3 @@ func (j *Job) start() error {
 
 	return nil
 }
-
-// lockWriteCloser wraps io.Writer and adds a lock and a no-op Closer method.
-type lockWriteCloser struct {
-	sync.Mutex
-	*strings.Builder
-}
-
-func (n *lockWriteCloser) Write(buf []byte) (int, error) {
-	n.Lock()
-	defer n.Unlock()
-	return n.Builder.Write(buf) //nolint:wrapcheck // No need for wrap here.
-}
-
-func (n *lockWriteCloser) Close() error { return nil }
