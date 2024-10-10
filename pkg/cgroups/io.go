@@ -2,15 +2,11 @@ package cgroups
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"strings"
 )
-
-// Common errors.
-var ErrNoBlockDeviceFound = errors.New("no block devices found")
 
 func getBlockDevices() ([]string, error) {
 	// Open /proc/partitions to get a list of block devices.
@@ -38,10 +34,6 @@ func getBlockDevices() ([]string, error) {
 		deviceID := fmt.Sprintf("%s:%s", major, minor)
 		devices = append(devices, deviceID)
 	}
-	if len(devices) == 0 {
-		return nil, ErrNoBlockDeviceFound
-	}
-
 	slog.Debug("Block devices found in /proc/partitions.", "block_devices", devices)
 	return devices, nil
 }

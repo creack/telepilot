@@ -143,6 +143,8 @@ func (j *Job) close() {
 				// If cleanup failed, go over again freeze/kill/assert/cleanup.
 				// If it happens it likely means something violated the cgroup single writer principle.
 				logger.Error("Error removing cgroup on job close.", "error", err)
+			} else {
+				break
 			}
 		}
 		<-ticker.C
