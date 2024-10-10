@@ -24,8 +24,8 @@ func (c *client) Close() error {
 	close(c.msgs)
 	select {
 	case <-ctx.Done():
-		_ = c.w.Close() // Best effort.
-		return context.DeadlineExceeded
+		_ = c.w.Close()  // Best effort.
+		return ctx.Err() //nolint:wrapcheck // No need to wrap here.
 	case <-c.done:
 		if err := c.w.Close(); err != nil {
 			return fmt.Errorf("close writer: %w", err)
@@ -75,17 +75,11 @@ func (b *BufferedBroadcaster) Buffer() string {
 	return b.buffer.String()
 }
 
-func (b *BufferedBroadcaster) SubsribeOutput(w io.WriteCloser) string {
+func (b *BufferedBroadcaster) SubscribeOutput(w io.WriteCloser) string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.subscribe(w)
 	return b.buffer.String()
-}
-
-func (b *BufferedBroadcaster) Subscribe(w io.WriteCloser) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.subscribe(w)
 }
 
 func (b *BufferedBroadcaster) subscribe(w io.WriteCloser) {

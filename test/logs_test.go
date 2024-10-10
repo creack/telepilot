@@ -29,7 +29,7 @@ func TestStreamLogsSimple(t *testing.T) {
 		noError(t, ts.bob.StreamLogs(ctx, jobID, w), "Stream Logs.")
 		assert(t, "", w.String(), "invalid output")
 
-		// One more time should yield same resutlt.
+		// One more time should yield same result.
 		w.Reset()
 		noError(t, ts.bob.StreamLogs(ctx, jobID, w), "Stream Logs.")
 		assert(t, "", w.String(), "invalid output")
@@ -115,7 +115,7 @@ func TestStreamLogsMultiClient(t *testing.T) {
 		select {
 		case <-ch:
 		case <-ctx.Done():
-			t.Fatal("Timeout waiting for cleanup.")
+			t.Error("Timeout waiting for cleanup.")
 		}
 	})
 

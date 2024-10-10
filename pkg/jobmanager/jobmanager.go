@@ -105,7 +105,7 @@ func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, 
 	// Create a pipe for the caller to consume.
 	r, w := io.Pipe()
 
-	output := j.broadcaster.SubsribeOutput(w)
+	output := j.broadcaster.SubscribeOutput(w)
 
 	// Cleanup routine. When the process dies or when the context is done,
 	// close the pipe and unsubscribe from the broadcaster.
