@@ -2,6 +2,7 @@ package cgroups
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -70,7 +71,12 @@ func setCgroupToggles(cgroupPath string) error {
 	if err != nil {
 		return fmt.Errorf("open io.max toggle: %w", err)
 	}
-	defer func() { _ = ioFile.Close() }() // Best effort.
+	defer func() {
+		if err := ioFile.Close(); err != nil {
+			// Best effort. Either we already failed to set the toggle or we already finished setting it.
+			slog.Warn("Error closing io.max cgroup.", "error", err)
+		}
+	}()
 	for _, elem := range devices {
 		if _, err := fmt.Fprintf(ioFile, "%s %s\n", elem, IOMax); err != nil {
 			return fmt.Errorf("set io.max toggle for %q: %w", elem, err)

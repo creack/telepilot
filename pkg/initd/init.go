@@ -8,6 +8,10 @@ import (
 	"syscall"
 )
 
+// Init handles the operations within the namespace for the child process
+// before executing the target.
+// args is expected to be the target process os.Args.
+// args[0] being the command, it will be resolved using the PATH env variable.
 func Init(args []string) error {
 	if len(args) == 0 {
 		return errors.New("missing command") //nolint:err113 // No need for fancy error here.

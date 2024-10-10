@@ -86,6 +86,27 @@ func (j *Job) ExitCode() int {
 	return c
 }
 
+// closeGroup freeze/kills the group then checks if it is still in use.
+// Returns true when no more process are attached to the group.
+func (j *Job) closeGroup() (bool, error) {
+	// Freeze the cgroup for good measure.
+	if err := os.WriteFile(filepath.Join(j.cgroupPath, "cgroup.freeze"), []byte("1"), 0); err != nil {
+		return false, fmt.Errorf("freeze group: %w", err)
+	}
+	// Kill all processes in the cgroup.
+	if err := os.WriteFile(filepath.Join(j.cgroupPath, "cgroup.kill"), []byte("1"), 0); err != nil {
+		return false, fmt.Errorf("kill group: %w", err)
+	}
+
+	// Assert that the group is empty.
+	buf, err := os.ReadFile(filepath.Join(j.cgroupPath, "cgroup.procs"))
+	if err != nil {
+		return false, fmt.Errorf("lookup group procs: %w", err)
+	}
+
+	return len(buf) == 0, nil
+}
+
 func (j *Job) close() {
 	j.mu.Lock()
 	if j.status != pb.JobStatus_JOB_STATUS_STOPPED {
@@ -105,41 +126,24 @@ func (j *Job) close() {
 	// safely be used without lock.
 	logger := slog.With("job_id", j.ID.String(), "cgroup_path", j.cgroupPath)
 
-	//nolint:mnd // Wait for ~1 second (arbitrary) for the cgroup to be empty.
-	const tickerInterval = 10*time.Millisecond
+	// Wait for ~1 second (arbitrary) for the cgroup to be empty.
+	const tickerInterval = 10 * time.Millisecond
 	const tickerAttempts = 100
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
 	for range tickerAttempts {
-		// Freeze the cgroup for good measure.
-		if err := os.WriteFile(filepath.Join(j.cgroupPath, "cgroup.kill"), []byte("1"), 0); err != nil {
-			// Best effort.
-			logger.Error("Error freezing cgroup.", "error", err)
-			break
-		}
-		// Kill all processes in the cgroup.
-		if err := os.WriteFile(filepath.Join(j.cgroupPath, "cgroup.kill"), []byte("1"), 0); err != nil {
-			// Best effort.
-			logger.Error("Error killing cgroup.", "error", err)
-			break
-		}
-
-		// Assert that the group is empty.
-		buf, err := os.ReadFile(filepath.Join(j.cgroupPath, "cgroup.procs"))
+		empty, err := j.closeGroup()
 		if err != nil {
-			logger.Error("Error reading cgroup.procs.", "error", err)
+			// Best effort.
+			logger.Error("Error closing group.", "error", err)
 			break
 		}
-		if len(buf) == 0 {
-			// Once empty, attempt to cleanup.
-			err := os.Remove(j.cgroupPath)
-			if err == nil {
-				// Success
-				return
+		if empty {
+			if err := os.Remove(j.cgroupPath); err != nil {
+				// If cleanup failed, go over again freeze/kill/assert/cleanup.
+				// If it happens it likely means something violated the cgroup single writer principle.
+				logger.Error("Error removing cgroup on job close.", "error", err)
 			}
-			// If cleanup failed, go over again freeze/kill/assert/cleanup.
-			// If it happens it likely means something violated the cgroup single writer principle.
-			logger.Error("Error removing cgroup on job close.", "error", err)
 		}
 		<-ticker.C
 	}
@@ -162,7 +166,13 @@ func (j *Job) start() error {
 	if err != nil {
 		return fmt.Errorf("setup cgroups for job: %w", err)
 	}
-	defer func() { _ = cgroupDir.Close() }() // Best effort.
+	defer func() {
+		// NOTE: This must be kept open until *after* the process started.
+		if err := cgroupDir.Close(); err != nil {
+			// Best effort. Either the process failed to start or started successfully and we don't need it anymore.
+			slog.Warn("Error closing cgroup from parent.", "error", err)
+		}
+	}()
 	// Make use of clone3 cgroup arg.
 	j.cmd.SysProcAttr.UseCgroupFD = true
 	j.cmd.SysProcAttr.CgroupFD = int(cgroupDir.Fd())

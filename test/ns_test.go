@@ -56,6 +56,11 @@ func TestNetworkNamespace(t *testing.T) {
 
 		w := &strings.Builder{}
 		noError(t, ts.alice.StreamLogs(ctx, jobID, w), "Stream logs.")
+		st, err := ts.alice.GetJobStatus(ctx, jobID)
+		noError(t, err, "Get job status.")
+		if st != pb.JobStatus_JOB_STATUS_EXITED.String()+" (0)" {
+			t.Skip("ip exited with error, likely missing")
+		}
 		// We expect only 1 entry of 2 lines: the loopback.
 		if l := len(strings.Split(strings.TrimSpace(w.String()), "\n")); l != 2 {
 			t.Fatalf("Unexpected iface count: %d\n", l)
@@ -88,6 +93,8 @@ func TestMountNamespace(t *testing.T) {
 
 	ts, ctx := newTestServer(t)
 
+	// NOTE: Once we implement a pivot-root, this won't work and we will need
+	// to have a mount-point relative to the new root.
 	pipeName := mkTempPipe(t, "pipe")
 
 	mountPoint := t.TempDir()

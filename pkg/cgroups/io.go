@@ -42,6 +42,6 @@ func getBlockDevices() ([]string, error) {
 		return nil, ErrNoBlockDeviceFound
 	}
 
-	slog.With("block_devices", devices).Debug("Block devices found in /proc/partitions.")
+	slog.Debug("Block devices found in /proc/partitions.", "block_devices", devices)
 	return devices, nil
 }
