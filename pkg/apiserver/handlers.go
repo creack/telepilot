@@ -76,13 +76,13 @@ func (s *Server) StreamLogs(req *pb.StreamLogsRequest, ss grpc.ServerStreamingSe
 	for {
 		n, err := r.Read(buf)
 		if n > 0 {
-			if err := ss.Send(&pb.StreamLogsResponse{Data: buf[:n]}); err != nil {
+			// NOTE: Make a copy of the data to respect ownership.
+			if err := ss.Send(&pb.StreamLogsResponse{Data: []byte(string(buf[:n]))}); err != nil {
 				return fmt.Errorf("send log entry: %w", err)
 			}
 		}
 		if err != nil {
-			// If the process dies while setting up StreamLogs, we can get a ErrClosedPipe.
-			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return fmt.Errorf("consume logs: %w", err)

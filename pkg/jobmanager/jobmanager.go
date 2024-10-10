@@ -99,16 +99,13 @@ func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, 
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if j.status != pb.JobStatus_JOB_STATUS_RUNNING {
-		return strings.NewReader(j.output.String()), nil
+		return strings.NewReader(j.broadcaster.Buffer()), nil
 	}
 
 	// Create a pipe for the caller to consume.
 	r, w := io.Pipe()
 
-	j.output.Lock()
-	output := j.output.String()
-	j.broadcaster.Subscribe(w)
-	j.output.Unlock()
+	output := j.broadcaster.SubsribeOutput(w)
 
 	// Cleanup routine. When the process dies or when the context is done,
 	// close the pipe and unsubscribe from the broadcaster.
@@ -117,9 +114,10 @@ func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, 
 		case <-ctx.Done():
 		case <-j.waitChan:
 		}
-		_, _ = r.Close(), w.Close() // Can't fail.
 		j.broadcaster.Unsubscribe(w)
 	}()
-
+	if output == "" {
+		return r, nil
+	}
 	return io.MultiReader(strings.NewReader(output), r), nil
 }

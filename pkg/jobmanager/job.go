@@ -50,7 +50,7 @@ func newJob(owner, cmd string, args []string) *Job {
 		cmd:   exec.Command(cmd, args...),
 
 		output:      &lockWriteCloser{Builder: &strings.Builder{}},
-		broadcaster: broadcaster.NewBroadcaster(),
+		broadcaster: broadcaster.NewBufferedBroadcaster(),
 
 		waitChan: make(chan struct{}),
 	}
@@ -104,9 +104,6 @@ func (j *Job) start() error {
 	// Use the broadcaster as output for the process.
 	j.cmd.Stdout = j.broadcaster
 	j.cmd.Stderr = j.broadcaster // NOTE: Merge out/err for simplicity. Should split them for production.
-
-	// Subscribe the in-memory buffer to keep historical logs.
-	j.broadcaster.Subscribe(j.output)
 
 	if err := j.cmd.Start(); err != nil {
 		// NOTE: We don't set a special status for 'failed to start' as this state
