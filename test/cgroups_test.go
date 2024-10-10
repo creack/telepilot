@@ -33,7 +33,7 @@ func TestCgroups(t *testing.T) {
 		buf, err := os.ReadFile(path.Join(cgroupJobPath, "cgroup.procs"))
 		noError(t, err, "read job cpu.procs")
 		pid := strings.TrimSpace(string(buf))
-		if _, err := strconv.Atoi(pid); err != nil || pid == "" {
+		if _, err := strconv.Atoi(pid); err != nil {
 			t.Fatalf("Unexpected job output: %q not a pid (%v).", pid, err)
 		}
 	})

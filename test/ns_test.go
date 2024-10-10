@@ -110,7 +110,7 @@ func TestMountNamespace(t *testing.T) {
 		r, w := io.Pipe()
 		ch := make(chan error, 1)
 		go func() { ch <- ts.alice.StreamLogs(ctx, jobID, w) }()
-		t.Cleanup(func() { noError(t, <-ch, "Stream Logs") }) // TODO: COnsider adding timeout.
+		t.Cleanup(func() { noError(t, <-ch, "Stream Logs") }) // TODO: Consider adding timeout.
 		t.Cleanup(func() { noError(t, ts.alice.StopJob(ctx, jobID), "Cleanup stop job.") })
 
 		buf := make([]byte, 32*1024) // Default from io.Copy. Reasonable. Even for large mount table.

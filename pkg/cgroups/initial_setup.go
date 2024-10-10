@@ -17,7 +17,7 @@ const (
 //
 // TODO: Consider cleaning up when the server dies.
 func InitialSetup() error {
-	// Make sur the base cgroup exists.
+	// Make sure the base cgroup exists.
 	if _, err := os.Stat(CgroupBasePath); err != nil {
 		if !os.IsNotExist(err) {
 			return fmt.Errorf("stat base cgroup: %w", err)
