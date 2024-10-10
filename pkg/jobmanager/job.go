@@ -101,35 +101,47 @@ func (j *Job) close() {
 	}
 	j.mu.Unlock()
 
-	logger := slog.With("job_id", j.ID.String(), "cgroup_path", j.cgroupPath)
-
 	// NOTE: cgroupPath is immutable and set at start before being shared, can
 	// safely be used without lock.
-	// Make sure all processes in the cgroup are gone.
-	if err := os.WriteFile(filepath.Join(j.cgroupPath, "cgroup.kill"), []byte("1"), 0); err != nil {
-		// Best effort.
-		logger.Error("Error removing cgroup on job close.", "error", err)
-	}
+	logger := slog.With("job_id", j.ID.String(), "cgroup_path", j.cgroupPath)
 
 	//nolint:mnd // Wait for ~1 second (arbitrary) for the cgroup to be empty.
 	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 	for range 100 {
+		// Freeze the cgroup for good measure.
+		if err := os.WriteFile(filepath.Join(j.cgroupPath, "cgroup.kill"), []byte("1"), 0); err != nil {
+			// Best effort.
+			logger.Error("Error freezing cgroup.", "error", err)
+			break
+		}
+		// Kill all processes in the cgroup.
+		if err := os.WriteFile(filepath.Join(j.cgroupPath, "cgroup.kill"), []byte("1"), 0); err != nil {
+			// Best effort.
+			logger.Error("Error killing cgroup.", "error", err)
+			break
+		}
+
+		// Assert that the group is empty.
 		buf, err := os.ReadFile(filepath.Join(j.cgroupPath, "cgroup.procs"))
 		if err != nil {
 			logger.Error("Error reading cgroup.procs.", "error", err)
 			break
 		}
 		if len(buf) == 0 {
-			break
+			// Once empty, attempt to cleanup.
+			err := os.Remove(j.cgroupPath)
+			if err == nil {
+				// Success
+				return
+			}
+			// If cleanup failed, go over again freeze/kill/assert/cleanup.
+			// If it happens it likely means something violated the cgroup single writer principle.
+			logger.Error("Error removing cgroup on job close.", "error", err)
 		}
 		<-ticker.C
 	}
-	ticker.Stop()
-
-	if err := os.Remove(j.cgroupPath); err != nil {
-		// Best effort.
-		logger.Error("Error removing cgroup on job close.", "error", err)
-	}
+	logger.Error("Timeout trying to cleanup cgroup.")
 }
 
 // wait for the underlying process. Broadcast the end via waitChan
