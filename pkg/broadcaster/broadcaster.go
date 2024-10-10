@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +18,7 @@ type client struct {
 
 func (c *client) Close() error {
 	// TODO: Consider making the timeout configurable.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) //nolint:mnd // Arbitrary duration.
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond) //nolint:mnd // Arbitrary duration.
 	defer cancel()
 
 	close(c.msgs)
@@ -43,7 +44,7 @@ func (c *client) Close() error {
 // Caveats:
 //   - The order of writes is not guaranteed.
 //   - Unsubscribe will block until all messages of the client have been written
-//     or until a hard-set 30s timeout is reached.
+//     or until a hard-set 500ms timeout is reached.
 //   - Close doesn't free the buffer. Relying on the GC for that.
 //   - No Cap on the in-memory buffer. Can easily cause OOM.
 //   - Slow clients will get evicted if their queue grows too much.
@@ -105,7 +106,10 @@ func (b *BufferedBroadcaster) Unsubscribe(w io.Writer) {
 	}
 	if c, ok := b.clients[w]; ok {
 		// TODO: Consider returning an error to surface the timeout.
-		_ = c.Close() // Best effort.
+		if err := c.Close(); err != nil {
+			// Best effort.
+			slog.Error("Error closing broadcast client.", "error", err)
+		}
 		delete(b.clients, w)
 	}
 }
@@ -125,7 +129,12 @@ func (b *BufferedBroadcaster) Write(p []byte) (int, error) {
 		default:
 			// When the buffer is full, it means the client is either
 			// blocking or too slow. Evict it.
-			go func() { _ = c.Close() }() // Best effort.
+			go func() {
+				if err := c.Close(); err != nil {
+					// Best effort.
+					slog.Error("Error closing broadcast client.", "error", err)
+				}
+			}()
 			delete(b.clients, w)
 		}
 	}
