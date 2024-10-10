@@ -2,7 +2,6 @@ package telepilot_test
 
 import (
 	"io"
-	"os"
 	"strings"
 	"testing"
 
@@ -95,45 +94,43 @@ func TestMountNamespace(t *testing.T) {
 
 	// NOTE: Once we implement a pivot-root, this won't work and we will need
 	// to have a mount-point relative to the new root.
-	pipeName := mkTempPipe(t, "pipe")
-
 	mountPoint := t.TempDir()
 
-	{
-		// Add a mountpoint in the job, dump the mount table, wait on a pipe and then cleanup.
-		jobID, err := ts.alice.StartJob(ctx, "sh", []string{
-			"-c",
-			"mount -t tmpfs tmpfs " + mountPoint + " && mount && cat " + pipeName + " && umount " + mountPoint,
-		})
-		noError(t, err, "Start job.")
+	// Add a mountpoint in the job, dump the mount table, wait on a pipe and then cleanup.
+	jobID1, err := ts.alice.StartJob(ctx, "sh", []string{
+		"-c",
+		"mount -t tmpfs tmpfs " + mountPoint + " && mount && sleep 5",
+	})
+	noError(t, err, "Start job.")
 
-		r, w := io.Pipe()
-		ch := make(chan error, 1)
-		go func() { ch <- ts.alice.StreamLogs(ctx, jobID, w) }()
-		t.Cleanup(func() { noError(t, <-ch, "Stream Logs") }) // TODO: Consider adding timeout.
-		t.Cleanup(func() { noError(t, ts.alice.StopJob(ctx, jobID), "Cleanup stop job.") })
+	r, w := io.Pipe()
+	ch := make(chan error, 1)
+	go func() { ch <- ts.alice.StreamLogs(ctx, jobID1, w) }()
+	t.Cleanup(func() { noError(t, <-ch, "Stream Logs") }) // TODO: Consider adding timeout.
+	t.Cleanup(func() { noError(t, ts.alice.StopJob(ctx, jobID1), "Cleanup stop job.") })
 
-		buf := make([]byte, 32*1024) // Default from io.Copy. Reasonable. Even for large mount table.
-		n, err := r.Read(buf)
-		noError(t, err, "Read job logs.")
-		if !strings.Contains(string(buf[:n]), "tmpfs on "+mountPoint) {
-			t.Fatal("Mountpoint missing from job output")
-		}
+	buf := make([]byte, 32*1024) // Default from io.Copy. Reasonable. Even for large mount table.
+	n, err := r.Read(buf)
+	noError(t, err, "Read job logs.")
+	if !strings.Contains(string(buf[:n]), "tmpfs on "+mountPoint) {
+		t.Fatal("Mountpoint missing from job output")
 	}
 
 	// While still hanging on the pipe, start a new job and check the mount table.
 	{
-		jobID, err := ts.alice.StartJob(ctx, "mount", nil)
+		jobID2, err := ts.alice.StartJob(ctx, "mount", nil)
 		noError(t, err, "Start job.")
-		t.Cleanup(func() { noError(t, ts.alice.StopJob(ctx, jobID), "Cleanup stop job.") })
+		t.Cleanup(func() { noError(t, ts.alice.StopJob(ctx, jobID2), "Cleanup stop job.") })
 
 		w := &strings.Builder{}
-		noError(t, ts.alice.StreamLogs(ctx, jobID, w), "Stream logs.")
+		noError(t, ts.alice.StreamLogs(ctx, jobID2, w), "Stream logs.")
 		if strings.Contains(w.String(), mountPoint) {
 			t.Fatal("Mountpoint from different job present in mount table.")
 		}
 	}
 
-	// Unblock the job.
-	noError(t, os.WriteFile(pipeName, nil, 0), "unblock job for cleanup")
+	// Assert that we were indeed still running.
+	st, err := ts.alice.GetJobStatus(ctx, jobID1)
+	noError(t, err, "Get job status.")
+	assert(t, pb.JobStatus_JOB_STATUS_RUNNING.String(), st, "invalid status")
 }
