@@ -115,6 +115,7 @@ func (jm *JobManager) StreamLogs(ctx context.Context, id uuid.UUID) (io.Reader, 
 		case <-j.waitChan:
 		}
 		j.broadcaster.Unsubscribe(w)
+		_ = w.Close() // Best effort.
 	}()
 	if output == "" {
 		return r, nil
