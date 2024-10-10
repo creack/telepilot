@@ -69,7 +69,7 @@ This leverages `clone(3)` and places the process in the cgroup upon creation.
 
 We'll use 0.5 CPU, 50MB memory and 1MB/s IO limits as hardcoded presets.
 
-To determine the major/minor for device IO limit we will scan `/proc/partitions` and use the block devices numbers.
+To determine the major/minor for device IO limit we will list `/sys/block` and use the block devices numbers from `/sys/block/<dev name>/dev`.
 
 For production, we may also want to consider to implement more toggles for flexibility.
 

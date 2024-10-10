@@ -1,38 +1,33 @@
 package cgroups
 
 import (
-	"bufio"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
 func getBlockDevices() ([]string, error) {
-	// Open /proc/partitions to get a list of block devices.
-	f, err := os.Open("/proc/partitions")
+	sysDevices, err := os.ReadDir("/sys/block")
 	if err != nil {
-		return nil, fmt.Errorf("open partitions file: %w", err)
+		return nil, fmt.Errorf("readdir /sys/block: %w", err)
 	}
-	defer func() { _ = f.Close() }() // Best effort.
 
-	var devices []string
-	for scanner := bufio.NewScanner(f); scanner.Scan(); {
-		parts := strings.Fields(scanner.Text())
-		if len(parts) != 4 { //nolint:mnd // We expect 4 fields per line. Skip the rest.
+	var devices []string //nolint:prealloc // False positive, we don't know the size in advance.
+	for _, device := range sysDevices {
+		deviceName := device.Name()
+		if strings.HasPrefix(deviceName, "loop") {
 			continue
 		}
-		major, minor, name := parts[0], parts[1], parts[3]
-		if major == "major" { // Skip the header line.
-			continue
-		}
+		devPath := filepath.Join("/sys/block", deviceName, "dev")
 
-		// Skip any partitions, only keep devices.
-		if lastChar := name[len(name)-1]; lastChar >= '0' && lastChar <= '9' {
-			continue
+		// Read the major:minor numbers from the dev file
+		devContent, err := os.ReadFile(devPath)
+		if err != nil {
+			return nil, fmt.Errorf("read device id for %q: %w", deviceName, err)
 		}
-		deviceID := fmt.Sprintf("%s:%s", major, minor)
-		devices = append(devices, deviceID)
+		devices = append(devices, strings.TrimSpace(string(devContent)))
 	}
 	slog.Debug("Block devices found in /proc/partitions.", "block_devices", devices)
 	return devices, nil
