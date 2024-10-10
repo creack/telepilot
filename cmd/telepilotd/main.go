@@ -74,7 +74,7 @@ func server(keyDir string) {
 		}
 		// NOTE: s.Serve takes ownership of lis. GracefulStop in s.Close() will invoke lis.Close().
 
-		slog.With("addr", lis.Addr().String()).Info("Server listening.")
+		slog.Info("Server listening.", "addr", lis.Addr().String())
 
 		if err := grpcServer.Serve(lis); err != nil {
 			slog.Error("Serve error", "error", err)

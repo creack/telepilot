@@ -3,7 +3,6 @@ package telepilot_test
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"io"
 	"net"
 	"os"
@@ -24,8 +23,7 @@ import (
 // Helper to assert success.
 func noError(t *testing.T, err error, msg string) {
 	t.Helper()
-	// Ignore EOF/Closed Pipe errors as it is commonly used to notify closure.
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) {
+	if err != nil {
 		t.Fatalf("%s: %s.", msg, err)
 	}
 }
@@ -38,7 +36,7 @@ func assert[T comparable](t *testing.T, expect, got T, msg string) {
 	}
 }
 
-func assertChan(ctx context.Context, t *testing.T, expect string, ch <-chan []byte, msg string) {
+func assertChanOnce(ctx context.Context, t *testing.T, expect string, ch <-chan []byte, msg string) {
 	t.Helper()
 
 	select {
@@ -155,7 +153,7 @@ func consumeFromPipe(ctx context.Context, t *testing.T, sizes ...int) (<-chan []
 		select {
 		case <-done:
 		case <-ctx.Done():
-			t.Fatal("Timeout wiating for read loop to end.")
+			t.Fatal("Timeout waiting for read loop to end.")
 		}
 	})
 

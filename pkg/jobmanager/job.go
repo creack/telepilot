@@ -1,9 +1,7 @@
 package jobmanager
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -31,19 +29,16 @@ type Job struct {
 	// Cgroup path used. Used to cleanup when done.
 	cgroupPath string
 
-	// In the context of the assignment, we store all the output in memory
-	// and merge stdout/stderr.
-	// Not suitable for production as the output can easily cause an OOM crash.
-	// Should also split stdout/stderr to allow for more control.
-	output *bytes.Buffer
-
 	// Status.
 	status   pb.JobStatus
 	exitCode int
 
 	// Log Broadcaster.
-	// broadcaster *broadcaster.Broadcaster
-	broadcaster *broadcaster.Broadcaster
+	// In the context of the assignment, we store all the output in memory
+	// and merge stdout/stderr.
+	// Not suitable for production as the output can easily cause an OOM crash.
+	// Should also split stdout/stderr to allow for more control.
+	broadcaster *broadcaster.BufferedBroadcaster
 
 	// Wait chan, closed when the process ends.
 	waitChan chan struct{}
@@ -55,8 +50,7 @@ func newJob(owner, cmd string, args []string) *Job {
 		Owner: owner,
 		cmd:   exec.Command(cmd, args...),
 
-		output:      bytes.NewBuffer(nil),
-		broadcaster: broadcaster.NewBroadcaster(),
+		broadcaster: broadcaster.NewBufferedBroadcaster(),
 
 		waitChan: make(chan struct{}),
 	}
@@ -95,7 +89,7 @@ func (j *Job) ExitCode() int {
 	return c
 }
 
-func (j *Job) Close() error {
+func (j *Job) Close() {
 	j.mu.Lock()
 	if j.status != pb.JobStatus_JOB_STATUS_STOPPED {
 		j.status = pb.JobStatus_JOB_STATUS_EXITED
@@ -104,34 +98,31 @@ func (j *Job) Close() error {
 		j.exitCode = j.cmd.ProcessState.ExitCode()
 	}
 	close(j.waitChan)
-	_ = j.broadcaster.Close() // Best effort.
+	if e1 := j.broadcaster.Close(); e1 != nil {
+		// Best effort.
+		slog.Error("Broadcaster closed with error.", "error", e1)
+	}
 	j.mu.Unlock()
 
 	// NOTE: cgroupPath is immutable and set at start before being shared, can
 	// safely be used without lock.
 	if err := os.RemoveAll(j.cgroupPath); err != nil {
+		// Best effort.
 		slog.Error("Error removing cgroup on job close.",
 			slog.String("job_id", j.ID.String()),
 			slog.String("cgroup_path", j.cgroupPath),
 			slog.Any("error", err),
 		)
-		return fmt.Errorf("remove cgroup: %w", err)
 	}
-
-	return nil
 }
 
 // wait for the underlying process. Broadcast the end via waitChan
 // and close the given resources.
 func (j *Job) wait() {
-	defer func() { _ = j.Close() }() // Best effort.
-
 	if err := j.cmd.Wait(); err != nil {
-		// TODO: Consider doing something with the error, store it in the state maybe.
-		// Nothing to do with it for now, discarding it.
-		_ = err
-		return
+		slog.Debug("Process Wait ended with error", "error", err)
 	}
+	j.Close()
 }
 
 // NOTE: Expected to be called before being shared. Not locked.
@@ -147,16 +138,13 @@ func (j *Job) start() error {
 
 	// Use the broadcaster as output for the process.
 	j.cmd.Stdout = j.broadcaster
-	j.cmd.Stderr = j.cmd.Stdout // NOTE: Merge out/err for simplicity. Should split them for production.
-
-	// Subscribe the in-memory buffer to keep historical logs.
-	j.broadcaster.Subscribe(&nopCloser{j.output})
+	j.cmd.Stderr = j.broadcaster // NOTE: Merge out/err for simplicity. Should split them for production.
 
 	if err := j.cmd.Start(); err != nil {
 		// NOTE: We don't set a special status for 'failed to start' as this state
 		// will be discarded and garbage collected. Never surfaced to the user.
 		// When we implement listing, it may be interesting to add.
-		_ = j.Close() // Best effort.
+		j.Close()
 		return fmt.Errorf("start process: %w", err)
 	}
 	j.status = pb.JobStatus_JOB_STATUS_RUNNING
@@ -164,8 +152,3 @@ func (j *Job) start() error {
 
 	return nil
 }
-
-// nopCloser wraps io.Writer and adds a no-op Closer method.
-type nopCloser struct{ io.Writer }
-
-func (n *nopCloser) Close() error { return nil }

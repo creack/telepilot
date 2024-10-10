@@ -76,7 +76,7 @@ func sadAuthorization(t *testing.T, client *apiclient.Client, jobID string) {
 
 	ctx := context.Background()
 
-	// Try all the endpoints on bob's job.
+	// Try all the endpoints.
 	st, ok := status.FromError(client.StopJob(ctx, jobID))
 	assert(t, true, ok, "extract grpc status from stop job error")
 	assert(t, codes.PermissionDenied, st.Code(), "invalid grpc status code for stop job")
