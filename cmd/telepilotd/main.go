@@ -16,6 +16,7 @@ import (
 
 	pb "go.creack.net/telepilot/api/v1"
 	"go.creack.net/telepilot/pkg/apiserver"
+	"go.creack.net/telepilot/pkg/cgroups"
 	"go.creack.net/telepilot/pkg/initd"
 	"go.creack.net/telepilot/pkg/tlsconfig"
 )
@@ -49,12 +50,12 @@ func server(keyDir string) {
 		os.Exit(1)
 	}
 
-	s, err := apiserver.NewServer()
-	if err != nil {
-		slog.Error("Failed to create api server.", "error", err)
+	if err := cgroups.InitialSetup(); err != nil {
+		slog.Error("Failed to init cgroups.", "error", err)
 		os.Exit(1)
 	}
 
+	s := apiserver.NewServer()
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
 		grpc.UnaryInterceptor(s.UnaryMiddleware),

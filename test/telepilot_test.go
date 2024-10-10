@@ -19,6 +19,7 @@ import (
 	pb "go.creack.net/telepilot/api/v1"
 	"go.creack.net/telepilot/pkg/apiclient"
 	"go.creack.net/telepilot/pkg/apiserver"
+	"go.creack.net/telepilot/pkg/cgroups"
 	"go.creack.net/telepilot/pkg/initd"
 	"go.creack.net/telepilot/pkg/tlsconfig"
 )
@@ -33,6 +34,12 @@ func TestMain(m *testing.M) {
 		}
 		return
 	}
+
+	if err := cgroups.InitialSetup(); err != nil {
+		slog.Error("Failed to init cgroups.", "error", err)
+		os.Exit(1)
+	}
+
 	ret := m.Run()
 	os.Exit(ret)
 }
@@ -106,8 +113,7 @@ func newTestServer(t *testing.T) (*testServer, context.Context) {
 	bobTLSConfig := loadTLSConfig(t, "client-bob")
 
 	// Create a server.
-	s, err := apiserver.NewServer()
-	noError(t, err, "New API Server.")
+	s := apiserver.NewServer()
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(serverTLSConfig)),
 		grpc.UnaryInterceptor(s.UnaryMiddleware),

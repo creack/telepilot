@@ -32,8 +32,7 @@ func TestUnauthenticatedUser(t *testing.T) {
 	}
 
 	// Create a server.
-	s, err := apiserver.NewServer()
-	noError(t, err, "New API Server.")
+	s := apiserver.NewServer()
 	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(serverTLSConfig)),
 		grpc.UnaryInterceptor(s.UnaryMiddleware), grpc.StreamInterceptor(s.StreamMiddleware))
 	pb.RegisterTelePilotServiceServer(grpcServer, s)

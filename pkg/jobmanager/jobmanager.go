@@ -27,6 +27,8 @@ type JobManager struct {
 }
 
 // NewJobManager instantiate the job manager.
+// NOTE: This expects the cgroup tree to be setup via cgroups.InitialSetup()
+// before being ready to use.
 func NewJobManager() *JobManager {
 	return &JobManager{jobs: map[uuid.UUID]*Job{}}
 }

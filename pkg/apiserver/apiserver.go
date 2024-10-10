@@ -2,10 +2,8 @@ package apiserver
 
 import (
 	"errors"
-	"fmt"
 
 	pb "go.creack.net/telepilot/api/v1"
-	"go.creack.net/telepilot/pkg/cgroups"
 	"go.creack.net/telepilot/pkg/jobmanager"
 )
 
@@ -21,12 +19,12 @@ type Server struct {
 	jobmanager *jobmanager.JobManager
 }
 
-func NewServer() (*Server, error) {
-	if err := cgroups.InitialSetup(); err != nil {
-		return nil, fmt.Errorf("cgroups initial setup: %w", err)
-	}
-
+// Create the server.
+// NOTE: As this creates a new job manager, it expected
+// the cgroup to be initialized via cgroups.InitalSetup()
+// before being ready to use.
+func NewServer() *Server {
 	return &Server{
 		jobmanager: jobmanager.NewJobManager(),
-	}, nil
+	}
 }
