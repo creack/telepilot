@@ -3,7 +3,8 @@ package cgroups
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
+	"syscall"
 )
 
 const (
@@ -20,7 +21,7 @@ const (
 // Would want something more flexible for production with maybe one type per cgroup type
 // with their own settable limits and serialization logic.
 func New(name string) (*os.File, error) {
-	cgroupPath := path.Join(CgroupBasePath, name)
+	cgroupPath := filepath.Join(CgroupBasePath, name)
 
 	// Lookup devices for the I/O limit.
 	devices, err := getBlockDevices()
@@ -34,17 +35,17 @@ func New(name string) (*os.File, error) {
 	}
 
 	// Set CPU limit.
-	if err := os.WriteFile(path.Join(cgroupPath, "cpu.max"), []byte(CPUMax), filePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(cgroupPath, "cpu.max"), []byte(CPUMax), filePerm); err != nil {
 		return nil, fmt.Errorf("set cpu.max toggle: %w", err)
 	}
 
 	// Set Memory limit.
-	if err := os.WriteFile(path.Join(cgroupPath, "memory.max"), []byte(MemoryMax), filePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(cgroupPath, "memory.max"), []byte(MemoryMax), filePerm); err != nil {
 		return nil, fmt.Errorf("set memory.max toggle: %w", err)
 	}
 
 	// Set I/O limit.
-	f, err := os.OpenFile(path.Join(cgroupPath, "io.max"), os.O_WRONLY, filePerm)
+	f, err := os.OpenFile(filepath.Join(cgroupPath, "io.max"), os.O_WRONLY, filePerm)
 	if err != nil {
 		return nil, fmt.Errorf("open io.max toggle: %w", err)
 	}
@@ -56,7 +57,7 @@ func New(name string) (*os.File, error) {
 	}
 
 	// Open cgroup directory for the caller to use.
-	cgroupDir, err := os.Open(cgroupPath)
+	cgroupDir, err := os.OpenFile(cgroupPath, syscall.O_PATH|syscall.O_DIRECTORY, 0)
 	if err != nil {
 		return nil, fmt.Errorf("open cgroup dir: %w", err)
 	}

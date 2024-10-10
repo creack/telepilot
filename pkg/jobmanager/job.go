@@ -5,8 +5,10 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -65,11 +67,6 @@ func newJob(owner, cmd string, args []string) *Job {
 		Cloneflags: syscall.CLONE_NEWPID | // PID namespace.
 			syscall.CLONE_NEWNS | // Mount namespace.
 			syscall.CLONE_NEWNET, // Network namespace.
-
-		// Make use of clone3 cgroup arg.
-		UseCgroupFD: true,
-
-		PidFD: new(int),
 	}
 
 	return j
@@ -89,7 +86,7 @@ func (j *Job) ExitCode() int {
 	return c
 }
 
-func (j *Job) Close() {
+func (j *Job) close() {
 	j.mu.Lock()
 	if j.status != pb.JobStatus_JOB_STATUS_STOPPED {
 		j.status = pb.JobStatus_JOB_STATUS_EXITED
@@ -104,15 +101,34 @@ func (j *Job) Close() {
 	}
 	j.mu.Unlock()
 
+	logger := slog.With("job_id", j.ID.String(), "cgroup_path", j.cgroupPath)
+
 	// NOTE: cgroupPath is immutable and set at start before being shared, can
 	// safely be used without lock.
-	if err := os.RemoveAll(j.cgroupPath); err != nil {
+	// Make sure all processes in the cgroup are gone.
+	if err := os.WriteFile(filepath.Join(j.cgroupPath, "cgroup.kill"), []byte("1"), 0); err != nil {
 		// Best effort.
-		slog.Error("Error removing cgroup on job close.",
-			slog.String("job_id", j.ID.String()),
-			slog.String("cgroup_path", j.cgroupPath),
-			slog.Any("error", err),
-		)
+		logger.Error("Error removing cgroup on job close.", "error", err)
+	}
+
+	//nolint:mnd // Wait for ~1 second (arbitrary) for the cgroup to be empty.
+	ticker := time.NewTicker(10 * time.Millisecond)
+	for range 100 {
+		buf, err := os.ReadFile(filepath.Join(j.cgroupPath, "cgroup.procs"))
+		if err != nil {
+			logger.Error("Error reading cgroup.procs.", "error", err)
+			break
+		}
+		if len(buf) == 0 {
+			break
+		}
+		<-ticker.C
+	}
+	ticker.Stop()
+
+	if err := os.Remove(j.cgroupPath); err != nil {
+		// Best effort.
+		logger.Error("Error removing cgroup on job close.", "error", err)
 	}
 }
 
@@ -122,7 +138,7 @@ func (j *Job) wait() {
 	if err := j.cmd.Wait(); err != nil {
 		slog.Debug("Process Wait ended with error", "error", err)
 	}
-	j.Close()
+	j.close()
 }
 
 // NOTE: Expected to be called before being shared. Not locked.
@@ -133,6 +149,8 @@ func (j *Job) start() error {
 		return fmt.Errorf("setup cgroups for job: %w", err)
 	}
 	defer func() { _ = cgroupDir.Close() }() // Best effort.
+	// Make use of clone3 cgroup arg.
+	j.cmd.SysProcAttr.UseCgroupFD = true
 	j.cmd.SysProcAttr.CgroupFD = int(cgroupDir.Fd())
 	j.cgroupPath = cgroupDir.Name()
 
@@ -144,7 +162,7 @@ func (j *Job) start() error {
 		// NOTE: We don't set a special status for 'failed to start' as this state
 		// will be discarded and garbage collected. Never surfaced to the user.
 		// When we implement listing, it may be interesting to add.
-		j.Close()
+		j.close()
 		return fmt.Errorf("start process: %w", err)
 	}
 	j.status = pb.JobStatus_JOB_STATUS_RUNNING
