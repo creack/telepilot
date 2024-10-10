@@ -42,10 +42,5 @@ func Init(args []string) error {
 		return fmt.Errorf("lookup path for %q: %w", args[0], err)
 	}
 
-	if err := syscall.Exec(cmd, args, os.Environ()); err != nil {
-		return fmt.Errorf("exec: %w", err)
-	}
-
-	// NOTE: Unreachable. Success will override the process.
-	panic("unreachable")
+	return fmt.Errorf("exec: %w", syscall.Exec(cmd, args, os.Environ()))
 }
