@@ -29,6 +29,8 @@ func getBlockDevices() ([]string, error) {
 		}
 		devices = append(devices, strings.TrimSpace(string(devContent)))
 	}
-	slog.Debug("Block devices found in /proc/partitions.", "block_devices", devices)
+
+	slog.Debug("Block devices found in /sys/block.", "block_devices", devices)
+
 	return devices, nil
 }
