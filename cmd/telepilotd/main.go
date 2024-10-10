@@ -4,8 +4,9 @@ package main
 import (
 	"context"
 	"flag"
-	"log" // TODO: Consider using slog.
+	"log/slog"
 	"net"
+	"os"
 	"os/signal"
 	"path"
 	"syscall"
@@ -21,6 +22,8 @@ import (
 func main() {
 	keyDir := flag.String("certs", "./certs",
 		"Certs directory. Expecting <certdir>/ca.pem, <certdir>/server.pem and <certdir>/server-key.pem.")
+	flag.Parse()
+
 	tlsConfig, err := tlsconfig.LoadTLSConfig(
 		path.Join(*keyDir, "server.pem"),
 		path.Join(*keyDir, "server-key.pem"),
@@ -28,7 +31,8 @@ func main() {
 		false,
 	)
 	if err != nil {
-		log.Fatalf("Failed to load tls config from %q: %s.", *keyDir, err)
+		slog.Error("Failed to load tls config.", "cert_dir", *keyDir, "error", err)
+		os.Exit(1)
 	}
 
 	s := apiserver.NewServer()
@@ -45,20 +49,26 @@ func main() {
 
 	doneCh := make(chan struct{})
 	go func() {
-		defer close(doneCh)
-
 		// TODO: Consider making the addr a flag.
 		lis, err := net.Listen("tcp", "localhost:9090")
 		if err != nil {
-			log.Fatalf("Listen error: %s.", err)
+			slog.Error("Listen error", slog.Any("error", err))
+			os.Exit(1)
 		}
+		// NOTE: s.Serve takes ownership of lis. GracefulStop in s.Close() will invoke lis.Close().
+
+		slog.Info("Server listening.", "addr", lis.Addr().String())
+
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("Serve error: %s", err)
+			slog.Error("Serve error", slog.Any("error", err))
+			os.Exit(1)
 		}
+
+		close(doneCh)
 	}()
 
 	<-ctx.Done()
-	log.Println("Bye.")
+	slog.Info("Bye.")
 	grpcServer.GracefulStop()
 	// TODO: Consider adding a timeout.
 	<-doneCh

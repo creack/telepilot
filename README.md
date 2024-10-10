@@ -36,3 +36,9 @@ job_id=$(./bin/telepilot -user alice start sh -c 'sleep 5; echo hello' | tee /de
 
 ./bin/telepilot -user bob stop "${job_id}" # Expected to fail with Permission Denied.
 ```
+
+## User Management
+
+Running `make mtls` generates 3 clients: `alice`, `bob` and `dave`.
+
+New clients can be generated on the fly by running `make certs/client-<name>.pem`.

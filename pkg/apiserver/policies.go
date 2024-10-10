@@ -33,5 +33,7 @@ func policyAllowed(string, *jobmanager.Job) bool { return true }
 
 // only allow if the user is set and matches the job's one.
 func policySameOwner(user string, job *jobmanager.Job) bool {
+	// NOTE: job.Owner doesn't need lock as it is only written once at creation time.
+	// TODO: Consider added a getter anyway, in case this changes.
 	return user != "" && job != nil && user == job.Owner
 }

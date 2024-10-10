@@ -14,15 +14,26 @@ include make/go-lint.mk
 .PHONY: all
 all: build mtls
 
+CGO_ENABLED = 0
+# Latest as of 2024-10-03.
+GO_DEBUG_IMG = golang:1.23.2@sha256:adee809c2d0009a4199a11a1b2618990b244c6515149fe609e2788ddf164bd10
 # Latest as of 2024-10-03.
 GO_IMG = golang:1.23.2-alpine@sha256:9dd2625a1ff2859b8d8b01d8f7822c0f528942fe56cfe7a1e7c38d3b8d72d679
-GO_BIN = docker run --rm -u "$(shell id -u):$(shell id -g)" -v "${PWD}:/src" -w /src -v $(shell go env GOMODCACHE || echo "${PWD}/.build/gomodcache"):/gomodcache -e GOCACHE=/src/.build/gocache -e GOMODCACHE=/gomodcache -e GOOS=linux -e GOARCH=amd64 ${GO_IMG}
+GO_BIN = docker run -e CGO_ENABLED=${CGO_ENABLED} --rm -u "$(shell id -u):$(shell id -g)" -v "${PWD}:/src" -w /src -v $(shell go env GOMODCACHE || echo "${PWD}/.build/gomodcache"):/gomodcache -e GOCACHE=/src/.build/gocache -e GOMODCACHE=/gomodcache -e GOOS=linux -e GOARCH=amd64 ${GO_IMG}
 
 .PHONY: build
 build: bin/telepilot bin/telepilotd
-bin/%: cmd/% ${GO_SRCS} ${PROTO_GENS}
+bin/%: ${GO_SRCS} ${PROTO_GENS}
 	mkdir -p $(dir $@)
 	${GO_BIN} go build -ldflags '-w -s' -o $@ ./cmd/${*}
+
+.PHONY: build/debug
+build/debug: bin/telepilot-debug bin/telepilotd-debug
+build/debug: GO_IMG := ${GO_DEBUG_IMG}
+build/debug: CGO_ENABLED := 1
+bin/%-debug: ${GO_SRCS} ${PROTO_GENS}
+	mkdir -p $(dir $@)
+	${GO_BIN} go build -tags debug -race -o $@ ./cmd/${*}
 
 .PHONY: test
 test: mtls ${PROTO_GENS}
@@ -44,6 +55,7 @@ help:
 		echo '  General:'; \
 		echo '    make all         Same as "make build mtls"'; \
 		echo '    make build       Build the binaries for the client and server'; \
+		echo '    make build/debug Build the binaries with race detector and symbols.'; \
 		echo '    make test        Run the tests'; \
 		echo '  File generation:'; \
 		echo '    make proto       Generate Go protobuf files'; \

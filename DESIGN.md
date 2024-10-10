@@ -41,7 +41,7 @@ The server and client will communicate using a **gRPC** API and will use **mTLS*
 A reusable Go library that manages:
 
   - **Job creation**: Creating new job with preset resource limits and with their own namespace. Jobs will be automatically started.
-  - **Job lifecycle**: Stopping (i.e. sending SIGKILL to the process), and querying the status of jobs.
+  - **Job lifecycle**: Stopping (i.e. sending SIGKILL to the process group), and querying the status of jobs.
     - NOTE: As only one caller can `wait` on a process, we need to properly wrap this to support mutiple clients.
   - **Log streaming**: Providing real-time streaming of job logs (stdout and stderr).
     - NOTE: To support multiple clients, we need to implement a broadcast mechanism.
@@ -144,7 +144,7 @@ The CLI default certs directory is `./certs` and can be changed with `-certs <ce
 
 Client:
   - start: Create and sart a job with pre-defined CPU, memory, and I/O limits.
-  - stop: Stop a running job (Send SIGKILL to the underlying process).
+  - stop: Stop a running job (Send SIGKILL to the underlying process group).
   - status: Get the current status and resource usage of a job.
   - logs: Stream logs for a running job. Gets all logs from the beginning and streams them until the process dies.
 

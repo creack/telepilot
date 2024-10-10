@@ -3,18 +3,16 @@ package telepilot_test
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"errors"
+	"io"
 	"net"
 	"os"
 	"path"
+	"syscall"
 	"testing"
+	"time"
 
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/status"
 
 	pb "go.creack.net/telepilot/api/v1"
 	"go.creack.net/telepilot/pkg/apiclient"
@@ -22,6 +20,7 @@ import (
 	"go.creack.net/telepilot/pkg/tlsconfig"
 )
 
+// Helper to assert success.
 func noError(t *testing.T, err error, msg string) {
 	t.Helper()
 	if err != nil {
@@ -29,6 +28,7 @@ func noError(t *testing.T, err error, msg string) {
 	}
 }
 
+// Generic assert.
 func assert[T comparable](t *testing.T, expect, got T, msg string) {
 	t.Helper()
 	if expect != got {
@@ -36,6 +36,20 @@ func assert[T comparable](t *testing.T, expect, got T, msg string) {
 	}
 }
 
+func assertChanOnce(ctx context.Context, t *testing.T, expect string, ch <-chan []byte, msg string) {
+	t.Helper()
+
+	select {
+	case <-ctx.Done():
+		t.Fatal("Timeout waiting for chan.")
+	case got := <-ch:
+		assert(t, expect, string(got), msg)
+	}
+}
+
+// Helper to load TLS Config from the certts dir.
+// Requires the certs to be present, otherwise, skip the test.
+// Run `make mtls` (or `make test`) to generate them.
 func loadTLSConfig(t *testing.T, name string) *tls.Config {
 	t.Helper()
 	const certDir = "../certs"
@@ -54,90 +68,25 @@ func loadTLSConfig(t *testing.T, name string) *tls.Config {
 	return cfg
 }
 
-//nolint:funlen // Acceptable for now. Cleaned up in future PR.
-func TestStartStop(t *testing.T) {
-	t.Parallel()
-
-	// Load certs for the server and a couple of clients.
-	serverTLSConfig := loadTLSConfig(t, "server")
-	aliceTLSConfig := loadTLSConfig(t, "client-alice")
-	bobTLSConfig := loadTLSConfig(t, "client-bob")
-
-	// Create a server.
-	s := apiserver.NewServer()
-	grpcServer := grpc.NewServer(
-		grpc.Creds(credentials.NewTLS(serverTLSConfig)),
-		grpc.UnaryInterceptor(s.UnaryMiddleware),
-		grpc.StreamInterceptor(s.StreamMiddleware),
-	)
-	pb.RegisterTelePilotServiceServer(grpcServer, s)
-
-	// Listen on a random port.
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	noError(t, err, "Listen")
-	t.Cleanup(func() { _ = lis.Close() }) // No strictly needed, but just to make sure. Called by the server Close().
-
-	// Start the server.
-	doneCh := make(chan struct{})
-	go func() { defer close(doneCh); noError(t, grpcServer.Serve(lis), "Serve") }()
-	t.Cleanup(func() { grpcServer.GracefulStop(); <-doneCh }) // Wait for the server to be fully closed.
-
-	// Create clients.
-	aliceClient, err := apiclient.NewClient(aliceTLSConfig, lis.Addr().String())
-	noError(t, err, "NewClient for Alice")
-	t.Cleanup(func() { noError(t, aliceClient.Close(), "Closing Alice's client.") })
-
-	bobClient, err := apiclient.NewClient(bobTLSConfig, lis.Addr().String())
-	noError(t, err, "NewClient for Bob")
-	t.Cleanup(func() { noError(t, bobClient.Close(), "Closing Bob's client.") })
-
-	ctx := context.Background()
-
-	// Create a Job.
-	jobID, err := aliceClient.StartJob(ctx, "foo", nil)
-	noError(t, err, "Alice start job.")
-
-	// Stop the Job from the same user.
-	t.Run("happy alice", func(t *testing.T) {
-		t.Parallel()
-		st, ok := status.FromError(aliceClient.StopJob(ctx, jobID))
-		assert(t, true, ok, "extract grpc status from error")
-
-		// TODO: Change this to noError once implemented.
-		assert(t, codes.Unimplemented, st.Code(), "invalid grpc status code")
-	})
-
-	// Attempt to stop the job from a different user.
-	t.Run("sad bob", func(t *testing.T) {
-		t.Parallel()
-
-		st, ok := status.FromError(bobClient.StopJob(ctx, jobID))
-		assert(t, true, ok, "extract grpc status from error")
-
-		assert(t, codes.PermissionDenied, st.Code(), "invalid grpc status code")
-
-		// Attempt to stop a non-existing job.
-		st, ok = status.FromError(bobClient.StopJob(ctx, uuid.New().String()))
-		assert(t, true, ok, "extract grpc status from error")
-
-		assert(t, codes.PermissionDenied, st.Code(), "invalid grpc status code")
-	})
+// testServer wraps a running server listening on local host
+// and a coupe of clients pointing to it.
+type testServer struct {
+	grpcServer *grpc.Server
+	alice, bob *apiclient.Client
 }
 
-//nolint:funlen // Acceptable for now. Cleaned up in future PR.
-func TestUnauthenticatedUser(t *testing.T) {
-	t.Parallel()
+// newTestServer handles the common setup to create a test server and clients.
+func newTestServer(t *testing.T) (*testServer, context.Context) {
+	t.Helper()
+
+	// Create a context with a large enough timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	t.Cleanup(cancel)
 
 	// Load certs for the server and a couple of clients.
 	serverTLSConfig := loadTLSConfig(t, "server")
-	// TODO: Use certs from an unknown CA, to make the test is more realistic.
 	aliceTLSConfig := loadTLSConfig(t, "client-alice")
 	bobTLSConfig := loadTLSConfig(t, "client-bob")
-
-	// Make the VerifyPeerCertificate always fail.
-	serverTLSConfig.VerifyPeerCertificate = func([][]byte, [][]*x509.Certificate) error {
-		return errors.New("fail") //nolint:err113 // No need for custom error here.
-	}
 
 	// Create a server.
 	s := apiserver.NewServer()
@@ -167,25 +116,60 @@ func TestUnauthenticatedUser(t *testing.T) {
 	noError(t, err, "NewClient for Bob")
 	t.Cleanup(func() { noError(t, bobClient.Close(), "Closing Bob's client.") })
 
-	ctx := context.Background()
+	return &testServer{
+		grpcServer: grpcServer,
+		alice:      aliceClient,
+		bob:        bobClient,
+	}, ctx
+}
 
-	// Attempt to Start a Job.
-	t.Run("sad alice", func(t *testing.T) {
-		t.Parallel()
-		_, err := aliceClient.StartJob(ctx, "true", nil)
-		st, ok := status.FromError(err)
-		assert(t, true, ok, "extract grpc status from error")
+// mkTempPipe creates a unix pipe in a temp directory. Used to synchronize job with test.
+// Returns the path of the pipe file.
+// NOTE: Once we implement support for input, may be better to use that.
+func mkTempPipe(t *testing.T, name string) string {
+	t.Helper()
 
-		assert(t, codes.Unavailable, st.Code(), "invalid grpc status code")
+	pipeName := path.Join(t.TempDir(), name)
+	// NOTE: POSIX compliant.
+	noError(t, syscall.Mknod(pipeName, syscall.S_IFIFO|0o644, 0), "Create tmp pipe.")
+	t.Cleanup(func() { noError(t, os.Remove(pipeName), "Cleanup tmp pipe.") })
+	return pipeName
+}
+
+// consumeFromPipe creates a pipe and a channel, then start a goroutine to consume the pipe and forwards to the channel.
+// Reads `len(sizes)` times and makes the channel buffered with `len(sizes)` size.
+// Waits for the goroutine to be complete on cleanup, i.e. will block if one of the `len(sizes)` reads blocks.
+func consumeFromPipe(ctx context.Context, t *testing.T, sizes ...int) (<-chan []byte, io.Writer) {
+	t.Helper()
+
+	// Create the pipe.
+	r, w := io.Pipe()
+	t.Cleanup(func() { _, _ = r.Close(), w.Close() }) // Make sure to cleanup.
+
+	// Sanity check, make sure than when all done, the goroutine is gone.
+	done := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			t.Fatal("Timeout waiting for read loop to end.")
+		}
 	})
 
-	// Attempt to Start a Job.
-	t.Run("sad bob", func(t *testing.T) {
-		t.Parallel()
-		_, err := bobClient.StartJob(ctx, "true", nil)
-		st, ok := status.FromError(err)
-		assert(t, true, ok, "extract grpc status from error")
+	// Data channel, will send what we read via this.
+	ch := make(chan []byte, len(sizes))
+	go func() {
+		defer close(done) // Signal when we are done.
 
-		assert(t, codes.Unavailable, st.Code(), "invalid grpc status code")
-	})
+		// Main read loop.
+		for _, s := range sizes {
+			buf := make([]byte, s)        // Making inside the loop to avoid override.
+			n, err := io.ReadFull(r, buf) // TODO: Consider closing `w` on timeout to fail faster.
+			noError(t, err, "read pipe")
+			ch <- buf[:n]
+		}
+		close(ch)
+	}()
+
+	return ch, w
 }

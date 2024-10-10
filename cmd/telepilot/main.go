@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log" // TODO: Consider using slog.
+	"log/slog"
 	"os"
 	"path"
 
@@ -125,6 +125,7 @@ func main() {
 	}
 
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		log.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 }
