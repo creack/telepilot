@@ -13,7 +13,7 @@ const (
 	dirPerm  = 0o755
 	filePerm = 0o644
 
-	cgroupBasePath = "/sys/fs/cgroup/telepilot"
+	CgroupBasePath = "/sys/fs/cgroup/telepilot"
 )
 
 // InitialSetup creates the base cgroup if needed and enables the subtree controls.
@@ -21,17 +21,17 @@ const (
 // TODO: Consider cleaning up when the server dies.
 func InitialSetup() error {
 	// Make sur the base cgroup exists.
-	if _, err := os.Stat(cgroupBasePath); err != nil {
+	if _, err := os.Stat(CgroupBasePath); err != nil {
 		if !os.IsNotExist(err) {
 			return fmt.Errorf("stat base cgroup: %w", err)
 		}
-		if err := os.MkdirAll(cgroupBasePath, dirPerm); err != nil {
+		if err := os.MkdirAll(CgroupBasePath, dirPerm); err != nil {
 			return fmt.Errorf("create base cgroup: %w", err)
 		}
 	}
 
 	// Make sure we have the required controls for the sub cgroups.
-	subtreeControlPath := path.Join(cgroupBasePath, "cgroup.subtree_control")
+	subtreeControlPath := path.Join(CgroupBasePath, "cgroup.subtree_control")
 
 	// Define the controls we need.
 	neededControls := map[string]struct{}{

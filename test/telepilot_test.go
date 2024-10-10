@@ -49,7 +49,7 @@ func noError(t *testing.T, err error, msg string) {
 func assert[T comparable](t *testing.T, expect, got T, msg string) {
 	t.Helper()
 	if expect != got {
-		t.Fatalf("Assert fail: %s:\n Expect:\t%v\n Got:\t%v", msg, expect, got)
+		t.Fatalf("Assert fail: %s:\n Expect:\t'%v'\n Got:\t'%v'", msg, expect, got)
 	}
 }
 
