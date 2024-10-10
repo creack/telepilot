@@ -57,7 +57,7 @@ func New(name string) (*os.File, error) {
 	}
 
 	// Open cgroup directory for the caller to use.
-	cgroupDir, err := os.OpenFile(cgroupPath, syscall.O_PATH|syscall.O_DIRECTORY, 0)
+	cgroupDir, err := os.OpenFile(cgroupPath, syscall.O_DIRECTORY, 0)
 	if err != nil {
 		return nil, fmt.Errorf("open cgroup dir: %w", err)
 	}
