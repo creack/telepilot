@@ -106,9 +106,11 @@ func (j *Job) close() {
 	logger := slog.With("job_id", j.ID.String(), "cgroup_path", j.cgroupPath)
 
 	//nolint:mnd // Wait for ~1 second (arbitrary) for the cgroup to be empty.
-	ticker := time.NewTicker(10 * time.Millisecond)
+	const tickerInterval = 10*time.Millisecond
+	const tickerAttempts = 100
+	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
-	for range 100 {
+	for range tickerAttempts {
 		// Freeze the cgroup for good measure.
 		if err := os.WriteFile(filepath.Join(j.cgroupPath, "cgroup.kill"), []byte("1"), 0); err != nil {
 			// Best effort.
