@@ -20,40 +20,23 @@ const (
 // NOTE: Naive/basic approach for the sake of the exercise.
 // Would want something more flexible for production with maybe one type per cgroup type
 // with their own settable limits and serialization logic.
-func New(name string) (*os.File, error) {
+func New(name string) (f *os.File, err error) { //nolint:nonamedreturns // Using named return to cleanup in defer.
 	cgroupPath := filepath.Join(CgroupBasePath, name)
-
-	// Lookup devices for the I/O limit.
-	devices, err := getBlockDevices()
-	if err != nil {
-		return nil, fmt.Errorf("get block devices: %w", err)
-	}
 
 	// Create cgroup directory.
 	if err := os.Mkdir(cgroupPath, dirPerm); err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf("creating cgroup: %w", err)
 	}
-
-	// Set CPU limit.
-	if err := os.WriteFile(filepath.Join(cgroupPath, "cpu.max"), []byte(CPUMax), filePerm); err != nil {
-		return nil, fmt.Errorf("set cpu.max toggle: %w", err)
-	}
-
-	// Set Memory limit.
-	if err := os.WriteFile(filepath.Join(cgroupPath, "memory.max"), []byte(MemoryMax), filePerm); err != nil {
-		return nil, fmt.Errorf("set memory.max toggle: %w", err)
-	}
-
-	// Set I/O limit.
-	f, err := os.OpenFile(filepath.Join(cgroupPath, "io.max"), os.O_WRONLY, filePerm)
-	if err != nil {
-		return nil, fmt.Errorf("open io.max toggle: %w", err)
-	}
-	defer func() { f.Close() }() // Best effort.
-	for _, elem := range devices {
-		if _, err := fmt.Fprintf(f, "%s %s\n", elem, IOMax); err != nil {
-			return nil, fmt.Errorf("set io.max toggle for %q: %w", elem, err)
+	// In case of error, clean up.
+	defer func() {
+		if err == nil {
+			return
 		}
+		_ = os.Remove(cgroupPath) // Best effort.
+	}()
+
+	if err := setCgroupToggles(cgroupPath); err != nil {
+		return nil, fmt.Errorf("setCgroupToggles: %w", err)
 	}
 
 	// Open cgroup directory for the caller to use.
@@ -64,4 +47,35 @@ func New(name string) (*os.File, error) {
 	// NOTE: The caller is expected to close.
 
 	return cgroupDir, nil
+}
+
+func setCgroupToggles(cgroupPath string) error {
+	// Set CPU limit.
+	if err := os.WriteFile(filepath.Join(cgroupPath, "cpu.max"), []byte(CPUMax), filePerm); err != nil {
+		return fmt.Errorf("set cpu.max toggle: %w", err)
+	}
+
+	// Set Memory limit.
+	if err := os.WriteFile(filepath.Join(cgroupPath, "memory.max"), []byte(MemoryMax), filePerm); err != nil {
+		return fmt.Errorf("set memory.max toggle: %w", err)
+	}
+
+	// Set I/O limit.
+	// Lookup devices for the I/O limit.
+	devices, err := getBlockDevices()
+	if err != nil {
+		return fmt.Errorf("get block devices: %w", err)
+	}
+	ioFile, err := os.OpenFile(filepath.Join(cgroupPath, "io.max"), os.O_WRONLY, filePerm)
+	if err != nil {
+		return fmt.Errorf("open io.max toggle: %w", err)
+	}
+	defer func() { _ = ioFile.Close() }() // Best effort.
+	for _, elem := range devices {
+		if _, err := fmt.Fprintf(ioFile, "%s %s\n", elem, IOMax); err != nil {
+			return fmt.Errorf("set io.max toggle for %q: %w", elem, err)
+		}
+	}
+
+	return nil
 }

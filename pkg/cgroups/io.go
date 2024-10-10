@@ -1,6 +1,7 @@
 package cgroups
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,13 +14,15 @@ var ErrNoBlockDeviceFound = errors.New("no block devices found")
 
 func getBlockDevices() ([]string, error) {
 	// Open /proc/partitions to get a list of block devices.
-	buf, err := os.ReadFile("/proc/partitions")
+	f, err := os.Open("/proc/partitions")
 	if err != nil {
-		return nil, fmt.Errorf("read partitions file: %w", err)
+		return nil, fmt.Errorf("open partitions file: %w", err)
 	}
-	var devices []string //nolint:prealloc // False positive, we don't know the size in advance.
-	for _, line := range strings.Split(string(buf), "\n") {
-		parts := strings.Fields(line)
+	defer func() { _ = f.Close() }() // Best effort.
+
+	var devices []string
+	for scanner := bufio.NewScanner(f); scanner.Scan(); {
+		parts := strings.Fields(scanner.Text())
 		if len(parts) != 4 { //nolint:mnd // We expect 4 fields per line. Skip the rest.
 			continue
 		}
