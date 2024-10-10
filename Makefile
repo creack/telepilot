@@ -3,16 +3,18 @@ MTLS_CLIENTS = alice bob dave
 GO_SRCS = $(shell find . -type f -name '*.go')
 
 .DEFAULT_GOAL = help
+.DELETE_ON_ERROR:
 
 include make/docker.mk
 include make/protobuf.mk
 include make/protobuf-lint.mk
 include make/mtls.mk
 include make/go-lint.mk
+include make/images.mk
 
 # Main target, generate the go protobuf files if needed and generate the mtls certs.
 .PHONY: all
-all: build mtls
+all: build mtls images
 
 CGO_ENABLED = 0
 # Latest as of 2024-10-03.
@@ -55,9 +57,10 @@ help:
 	@( \
 		echo 'Usage:'; \
 		echo '  General:'; \
-		echo '    make all         Same as "make build mtls"'; \
+		echo '    make all         Same as "make build mtls images"'; \
 		echo '    make build       Build the binaries for the client and server'; \
 		echo '    make build/debug Build the binaries with race detector and symbols.'; \
+		echo '    make images      Download default images from Docker Hub.'; \
 		echo '    make test        Run the tests'; \
 		echo '  File generation:'; \
 		echo '    make proto       Generate Go protobuf files'; \
