@@ -3,7 +3,9 @@ package telepilot_test
 import (
 	"context"
 	"crypto/tls"
+	"flag"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"path"
@@ -17,8 +19,30 @@ import (
 	pb "go.creack.net/telepilot/api/v1"
 	"go.creack.net/telepilot/pkg/apiclient"
 	"go.creack.net/telepilot/pkg/apiserver"
+	"go.creack.net/telepilot/pkg/cgroups"
+	"go.creack.net/telepilot/pkg/initd"
 	"go.creack.net/telepilot/pkg/tlsconfig"
 )
+
+func TestMain(m *testing.M) {
+	isInit := flag.Bool("init", false, "internal flag to toggle init mode")
+	flag.Parse()
+	if *isInit {
+		if err := initd.Init(flag.Args()); err != nil {
+			slog.Error("Init error.", "error", err, "args", flag.Args())
+			os.Exit(1)
+		}
+		return
+	}
+
+	if err := cgroups.InitialSetup(); err != nil {
+		slog.Error("Failed to init cgroups.", "error", err)
+		os.Exit(1)
+	}
+
+	ret := m.Run()
+	os.Exit(ret)
+}
 
 // Helper to assert success.
 func noError(t *testing.T, err error, msg string) {
@@ -32,7 +56,7 @@ func noError(t *testing.T, err error, msg string) {
 func assert[T comparable](t *testing.T, expect, got T, msg string) {
 	t.Helper()
 	if expect != got {
-		t.Fatalf("Assert fail: %s:\n Expect:\t%v\n Got:\t%v", msg, expect, got)
+		t.Fatalf("Assert fail: %s:\n Expect:\t'%v'\n Got:\t'%v'", msg, expect, got)
 	}
 }
 

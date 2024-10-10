@@ -21,6 +21,8 @@ GO_DEBUG_IMG = golang:1.23.2@sha256:adee809c2d0009a4199a11a1b2618990b244c6515149
 GO_IMG = golang:1.23.2-alpine@sha256:9dd2625a1ff2859b8d8b01d8f7822c0f528942fe56cfe7a1e7c38d3b8d72d679
 GO_BIN = docker run -e CGO_ENABLED=${CGO_ENABLED} --rm -u "$(shell id -u):$(shell id -g)" -v "${PWD}:/src" -w /src -v $(shell go env GOMODCACHE || echo "${PWD}/.build/gomodcache"):/gomodcache -e GOCACHE=/src/.build/gocache -e GOMODCACHE=/gomodcache -e GOOS=linux -e GOARCH=amd64 ${GO_IMG}
 
+GOTEST_BIN = docker run --cgroupns=host --privileged --rm -v "${PWD}:/src" -w /src -v $(shell go env GOMODCACHE || echo "${PWD}/.build/gomodcache"):/gomodcache -e GOCACHE=/src/.build/gocache -e GOMODCACHE=/gomodcache -e GOOS=linux -e GOARCH=amd64 ${GO_IMG}
+
 .PHONY: build
 build: bin/telepilot bin/telepilotd
 bin/%: ${GO_SRCS} ${PROTO_GENS}
@@ -37,7 +39,7 @@ bin/%-debug: ${GO_SRCS} ${PROTO_GENS}
 
 .PHONY: test
 test: mtls ${PROTO_GENS}
-	${GO_BIN} go test -v ./...
+	${GOTEST_BIN} go test -tags=debug -v ./...
 
 # Run all linters.
 .PHONY: lint

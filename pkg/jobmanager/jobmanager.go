@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/google/uuid"
 
@@ -27,12 +27,14 @@ type JobManager struct {
 }
 
 // NewJobManager instantiate the job manager.
+// NOTE: This expects the cgroup tree to be setup via cgroups.InitialSetup()
+// before being ready to use.
 func NewJobManager() *JobManager {
 	return &JobManager{jobs: map[uuid.UUID]*Job{}}
 }
 
 func (jm *JobManager) StartJob(owner, cmd string, args []string) (uuid.UUID, error) {
-	j := newJob(owner, cmd, args)
+	j := newJob(owner, "/proc/self/exe", append([]string{"-init", cmd}, args...))
 
 	if err := j.start(); err != nil {
 		return uuid.Nil, fmt.Errorf("job start: %w", err)
@@ -68,10 +70,8 @@ func (jm *JobManager) StopJob(id uuid.UUID) error {
 			return nil
 		}
 		if j.cmd.Process != nil {
-			// Send the KILL to the process group, not just the process to avoid orphans.
-			// TODO: Change to cmd.Process.Kill using pidfd mode once the cgroup are applied. Done in PR #9.
-			if err := syscall.Kill(-j.cmd.Process.Pid, syscall.SIGKILL); err != nil {
-				if errors.Is(err, syscall.ESRCH) {
+			if err := j.cmd.Process.Kill(); err != nil {
+				if errors.Is(err, os.ErrProcessDone) {
 					// If the process died as we were about to stop it, nothing to do.
 					// Don't set the status as stopped as it exited on it's own.
 					// This is an unavoidable "race" as we don't control the child process,
@@ -80,8 +80,8 @@ func (jm *JobManager) StopJob(id uuid.UUID) error {
 				}
 				return fmt.Errorf("process kill %d: %w", j.cmd.Process.Pid, err)
 			}
+			j.status = pb.JobStatus_JOB_STATUS_STOPPED
 		}
-		j.status = pb.JobStatus_JOB_STATUS_STOPPED
 		return nil
 	}(); err != nil {
 		return err

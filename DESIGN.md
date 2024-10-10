@@ -67,9 +67,9 @@ To support the sub-cgroups, we'll enable the `+cpu`, `+memory` and `+io` control
 To place the process in the cgroup, `/sys/fs/cgroup/telepilot/<job_id>` gets open with `os.Open` and the file description passed to `exec.Cmd` using the `UseCgroupFD` and `CgroupFD` fields from `SysProcAttr`.
 This leverages `clone(3)` and places the process in the cgroup upon creation.
 
-We'll use 0.5 CPU, 500MB memory and 1MB/s IO limits as hardcoded presets.
+We'll use 0.5 CPU, 50MB memory and 1MB/s IO limits as hardcoded presets.
 
-To determine the major/minor for device IO limit we will scan `/proc/partitions` and use the block devices numbers.
+To determine the major/minor for device IO limit we will list `/sys/block` and use the block devices numbers from `/sys/block/<dev name>/dev`.
 
 For production, we may also want to consider to implement more toggles for flexibility.
 
