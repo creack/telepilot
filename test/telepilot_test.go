@@ -3,7 +3,6 @@ package telepilot_test
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"io"
 	"net"
 	"os"
@@ -24,8 +23,7 @@ import (
 // Helper to assert success.
 func noError(t *testing.T, err error, msg string) {
 	t.Helper()
-	// Ignore EOF/Closed Pipe errors as it is commonly used to notify closure.
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) {
+	if err != nil {
 		t.Fatalf("%s: %s.", msg, err)
 	}
 }
