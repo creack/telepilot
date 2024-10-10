@@ -43,6 +43,5 @@ func Init(args []string) error {
 	}
 
 	// NOTE: Unreachable. Success will override the process.
-
-	return nil
+	panic("unreachable")
 }
