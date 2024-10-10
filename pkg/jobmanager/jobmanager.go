@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -32,7 +33,12 @@ func NewJobManager() *JobManager {
 }
 
 func (jm *JobManager) StartJob(owner, cmd string, args []string) (uuid.UUID, error) {
-	j := newJob(owner, cmd, args)
+	selfPath, err := filepath.Abs(os.Args[0])
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("lookup self abs path: %w", err)
+	}
+
+	j := newJob(owner, selfPath, append([]string{"-init", cmd}, args...))
 
 	if err := j.start(); err != nil {
 		return uuid.Nil, fmt.Errorf("job start: %w", err)

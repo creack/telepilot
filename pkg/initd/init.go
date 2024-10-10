@@ -1,9 +1,10 @@
-package main
+package initd
 
 import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"syscall"
 )
 
@@ -32,8 +33,13 @@ func Init(args []string) error {
 		return fmt.Errorf("remount /proc: %w", err)
 	}
 
+	cmd, err := exec.LookPath(args[0])
+	if err != nil {
+		return fmt.Errorf("lookup path for %q: %w", args[0], err)
+	}
+
 	//nolint:gosec // Expected exec from variable.
-	if err := syscall.Exec(args[0], args, os.Environ()); err != nil {
+	if err := syscall.Exec(cmd, args, os.Environ()); err != nil {
 		return fmt.Errorf("exec: %w", err)
 	}
 
