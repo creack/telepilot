@@ -1,9 +1,12 @@
 package telepilot_test
 
 import (
+	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	pb "go.creack.net/telepilot/api/v1"
 )
@@ -106,14 +109,28 @@ func TestMountNamespace(t *testing.T) {
 	r, w := io.Pipe()
 	ch := make(chan error, 1)
 	go func() { ch <- ts.alice.StreamLogs(ctx, jobID1, w) }()
-	t.Cleanup(func() { noError(t, <-ch, "Stream Logs") }) // TODO: Consider adding timeout.
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		select {
+		case <-ctx.Done():
+			t.Error("Timeout waiting for StreamLogs to end.")
+		case err := <-ch:
+			noError(t, err, "Stream Logs")
+		}
+	})
 	t.Cleanup(func() { noError(t, ts.alice.StopJob(ctx, jobID1), "Cleanup stop job.") })
 
 	buf := make([]byte, 32*1024) // Default from io.Copy. Reasonable. Even for large mount table.
-	n, err := r.Read(buf)
-	noError(t, err, "Read job logs.")
-	if !strings.Contains(string(buf[:n]), "tmpfs on "+mountPoint) {
-		t.Fatal("Mountpoint missing from job output")
+	for {
+		n, err := r.Read(buf)
+		if errors.Is(err, io.EOF) {
+			t.Fatal("Mountpoint missing from job output.")
+		}
+		noError(t, err, "Read job logs.")
+		if strings.Contains(string(buf[:n]), "tmpfs on "+mountPoint) {
+			break
+		}
 	}
 
 	// While still hanging on the pipe, start a new job and check the mount table.
