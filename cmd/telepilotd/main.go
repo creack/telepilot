@@ -16,17 +16,18 @@ import (
 
 	pb "go.creack.net/telepilot/api/v1"
 	"go.creack.net/telepilot/pkg/apiserver"
+	"go.creack.net/telepilot/pkg/initd"
 	"go.creack.net/telepilot/pkg/tlsconfig"
 )
 
 func main() {
 	keyDir := flag.String("certs", "./certs",
 		"Certs directory. Expecting <certdir>/ca.pem, <certdir>/server.pem and <certdir>/server-key.pem.")
-	init := flag.Bool("init", false, "internal flag to toggle init mode")
+	isInit := flag.Bool("init", false, "internal flag to toggle init mode")
 	flag.Parse()
 
-	if *init {
-		if err := Init(flag.Args()); err != nil {
+	if *isInit {
+		if err := initd.Init(flag.Args()); err != nil {
 			slog.Error("Init error.", "error", err, "args", flag.Args())
 			os.Exit(1)
 		}
