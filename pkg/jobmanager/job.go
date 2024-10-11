@@ -134,21 +134,27 @@ func (j *Job) close() {
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
 	for range tickerAttempts {
-		empty, err := j.closeGroup()
-		if err != nil {
+		if empty, err := j.closeGroup(); err != nil {
 			// Best effort.
 			logger.Error("Error closing group.", "error", err)
-			break
+			return
+		} else if !empty {
+			// If the groupp is not empty, wait and try again.
+			<-ticker.C
+			continue
 		}
-		if empty {
-			if err := os.Remove(j.cgroupPath); err != nil {
-				// If cleanup failed, go over again freeze/kill/assert/cleanup.
-				// If it happens it likely means something violated the cgroup single writer principle.
-				logger.Error("Error removing cgroup on job close.", "error", err)
-			} else {
-				return
-			}
+
+		if err := os.Remove(j.cgroupPath); err == nil {
+			// Success.
+			return
+		} else if !errors.Is(err, syscall.EBUSY) {
+			// If we have an error that is not EBUSY, stop here.
+			logger.Error("Error removing cgroup on job close.", "error", err)
+			return
 		}
+		// If cleanup failed, go over again freeze/kill/assert/cleanup.
+		// If it happens it likely means something violated the cgroup single writer principle.
+		logger.Warn("Cgroup still busy while trying to remove it.")
 		<-ticker.C
 	}
 	logger.Error("Timeout trying to cleanup cgroup.")
