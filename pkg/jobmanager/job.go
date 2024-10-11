@@ -204,13 +204,15 @@ func (j *Job) start() error {
 		// will be discarded and garbage collected. Never surfaced to the user.
 		// When we implement listing, it may be interesting to add.
 		j.close()
+		_, _ = r.Close(), w.Close() // Best effort.
 		return fmt.Errorf("start init process: %w", err)
 	}
-	_ = w.Close() // Best effort.
+	_ = w.Close() // Best effort. Needs to be closed before the ReadAll and after Start.
 	j.status = pb.JobStatus_JOB_STATUS_RUNNING
 	go j.wait()
 
 	startErrBuf, err := io.ReadAll(r)
+	_ = r.Close() // Best effort.
 	if err != nil {
 		return fmt.Errorf("read control pipe: %w", err)
 	}
