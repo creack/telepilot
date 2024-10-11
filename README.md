@@ -13,6 +13,45 @@ To build the binary, use `make build`. It will create binaries:
 Use `make test` to run the tests. This will generate all the necessary files,
 including keys and certs then run the test suite.
 
+### Manual testing
+
+To help with cgroup testing, test scripts are provided under [./test/scripts](./test/scripts).
+
+Assuming the server is up and running, from the reposiroty root:
+
+#### CPU
+
+In one shell
+
+```sh
+./bin/telepilot start ./test/scripts/cpu.sh | tee /tmp/job_id"
+```
+
+Somewhere else using `htop` or similar, observe CPU usage. Should be 50% while the script attempts to use 100%.
+
+Don't forget to kill the test.
+
+```sh
+./bin/telepilot stop "$(cat /tmp/job_id)"
+```
+
+#### Memory
+
+```sh
+job_id=$(./bin/telepilot start ./test/scripts/memory.sh) && ./bin/telepilot logs "${job_id}"
+```
+
+This will run for at most one minute. It may OOM before then. Using `htop` or similar, observe that the memory
+usage never exceeds 50MB.
+
+#### IO
+
+```sh
+job_id=$(./bin/telepilot start ./test/scripts/memory.sh) && ./bin/telepilot logs "${job_id}"
+```
+
+This will run for 10 seconds and show the output of `dd` including the bandwidth. It should be 1MB/s for both read and write.
+
 ## Usage
 
 Before getting started, run `make all` to build binaries, generate a CA, server and client keys/certs.

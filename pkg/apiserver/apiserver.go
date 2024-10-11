@@ -19,6 +19,10 @@ type Server struct {
 	jobmanager *jobmanager.JobManager
 }
 
+// Create the server.
+// NOTE: As this creates a new job manager, it expected
+// the cgroup to be initialized via cgroups.InitalSetup()
+// before being ready to use.
 func NewServer() *Server {
 	return &Server{
 		jobmanager: jobmanager.NewJobManager(),
