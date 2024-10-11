@@ -1,7 +1,9 @@
 package jobmanager
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -184,15 +186,31 @@ func (j *Job) start() error {
 	j.cmd.Stdout = j.broadcaster
 	j.cmd.Stderr = j.broadcaster // NOTE: Merge out/err for simplicity. Should split them for production.
 
+	// Control pipe.
+	r, w, err := os.Pipe()
+	if err != nil {
+		return fmt.Errorf("os.Pipe: %w", err)
+	}
+	j.cmd.ExtraFiles = []*os.File{w} // NOTE: We don't support setting extra files. Our pipe will always be '3'.
+
 	if err := j.cmd.Start(); err != nil {
 		// NOTE: We don't set a special status for 'failed to start' as this state
 		// will be discarded and garbage collected. Never surfaced to the user.
 		// When we implement listing, it may be interesting to add.
 		j.close()
-		return fmt.Errorf("start process: %w", err)
+		return fmt.Errorf("start init process: %w", err)
 	}
+	_ = w.Close() // Best effort.
 	j.status = pb.JobStatus_JOB_STATUS_RUNNING
 	go j.wait()
+
+	startErrBuf, err := io.ReadAll(r)
+	if err != nil {
+		return fmt.Errorf("read control pipe: %w", err)
+	}
+	if len(startErrBuf) != 0 {
+		return fmt.Errorf("start job process: %w", errors.New(string(startErrBuf))) //nolint:err113 // Expected.
+	}
 
 	return nil
 }

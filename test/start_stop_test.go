@@ -1,15 +1,12 @@
 package telepilot_test
 
 import (
-	"io"
 	"os"
 	"testing"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	pb "go.creack.net/telepilot/api/v1"
 )
 
 // Make sure that we can call start and stop without errors.
@@ -54,13 +51,8 @@ func TestInvalidStart(t *testing.T) {
 
 	// Create a Job.
 	jobID, err := ts.alice.StartJob(ctx, "/", nil)
-	noError(t, err, "Invalid job should still initially work, creating the job and id.")
-
-	// Make sure to wait for the job to end.
-	noError(t, ts.alice.StreamLogs(ctx, jobID, io.Discard), "Wait for job to end.")
-
-	// Assert that the job failed.
-	st, err := ts.alice.GetJobStatus(ctx, jobID)
-	noError(t, err, "Get job status.")
-	assert(t, pb.JobStatus_JOB_STATUS_EXITED.String()+" (1)", st, "invalid failed job status")
+	if err == nil {
+		t.Fatal("Starting invalid job should fail but didn't.")
+	}
+	assert(t, "", jobID, "invalid job id")
 }
